@@ -26,6 +26,9 @@ class AlloggiatiWebApi:
     # Token namedtuple
     Token = namedtuple('Token', ['issued', 'expires', 'token'])
 
+    # Location namedtuple
+    Location= namedtuple('Location', ['id', 'name', 'province', 'timestamp'])
+
     # Enum for table types
     class TableType(Enum):
         LOCATIONS = 'Luoghi'
@@ -40,6 +43,7 @@ class AlloggiatiWebApi:
         self._password = password
         self._ws_key = ws_key
         self._token= self._generate_token()
+        self._locations= None
 
 
     def authentication_test(self) -> Result:
@@ -112,6 +116,22 @@ class AlloggiatiWebApi:
         return result
 
 
+    def ricevuta(self, datetime: str) -> Result:
+        logging.info(f"Requesting 'Ricevuta' endpoint. datetime: {datetime}")
+        soap_envelope = soap_utils.new_envelope(
+            soap_utils.new_body(f'''
+            <Ricevuta xmlns="AlloggiatiService">
+              <Utente>{self._user}</Utente>
+              <token>{self._token.token}</token>
+              <Data>{datetime.isoformat()}</Data>
+            </Ricevuta>''')
+        )
+        xml_response= soap_utils.make_request(self._url, soap_envelope)
+        result = self._parse_response(xml_response, ['PDF'])
+        logging.info(f"'Ricevuta' result: {result}")
+        return result
+
+
     def tabella(self, table_type: TableType) -> Result:
         logging.info(f"Requesting 'Tabella' endpoint. Table type: {table_type}")
         soap_envelope = soap_utils.new_envelope(
@@ -128,20 +148,18 @@ class AlloggiatiWebApi:
         return result
 
 
-    def ricevuta(self, datetime: str) -> Result:
-        logging.info(f"Requesting 'Ricevuta' endpoint. datetime: {datetime}")
-        soap_envelope = soap_utils.new_envelope(
-            soap_utils.new_body(f'''
-            <Ricevuta xmlns="AlloggiatiService">
-              <Utente>{self._user}</Utente>
-              <token>{self._token.token}</token>
-              <Data>{datetime}</Data>
-            </Ricevuta>''')
-        )
-        xml_response= soap_utils.make_request(self._url, soap_envelope)
-        result = self._parse_response(xml_response, ['PDF'])
-        logging.info(f"'Ricevuta' result: {result}")
-        return result
+    def get_location(self, location_name: str):
+        if self._locations is None:
+            result= self.tabella(AlloggiatiWebApi.TableType.LOCATIONS)
+            if not result.success:
+                raise RuntimeError(f"Error: {result.err_code} - {result.err_desc}")
+            csv_records = [x for x in result.data['CSV'].split("\n") if x != ""]
+            self._locations= []
+            for record in csv_records:
+                ss= record.split(";")
+                self._locations.append(AlloggiatiWebApi.Location(ss[0], ss[1], ss[2], ss[3]))
+
+        return next((x for x in self._locations if x[1] == location_name), None)
 
 
     def _generate_token(self) -> Token:

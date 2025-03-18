@@ -29,9 +29,12 @@ myguesthouse/
 │   │   ├── __init__.py
 │   │   ├── apartment_service.py
 │   │   └── reservation_service.py
-│   └── utils/
+│   ├── utils/
+│   |   ├── __init__.py
+│   |   └── availability_calculator.py
+|   └── tests/
 │       ├── __init__.py
-│       └── availability_calculator.py
+│       └── test_availability_calculator.py
 │
 ├── registration/
 │   ├── __init__.py
@@ -43,9 +46,12 @@ myguesthouse/
 │   │   ├── __init__.py
 │   │   ├── guest_service.py
 │   │   └── police_reporting_service.py  # Interface with police systems
-│   └── utils/
+│   ├── utils/
+│   |   ├── __init__.py
+│   |   └── document_validator.py        # Validate IDs, passports
+|   └── tests/
 │       ├── __init__.py
-│       └── document_validator.py        # Validate IDs, passports
+│       └── test_police_reporting_service.py
 │
 ├── accounting/
 │   ├── __init__.py
@@ -59,9 +65,11 @@ myguesthouse/
 │   │   ├── invoice_service.py
 │   │   ├── payment_service.py
 │   │   └── reporting_service.py         # Financial reports
-│   └── utils/
-│       ├── __init__.py
-│       └── tax_calculator.py
+│   ├── utils/
+│   |   ├── __init__.py
+│   |   └── tax_calculator.py
+|   └── tests/
+│       └── __init__.py
 │
 ├── api/                     # Optional: API layer if needed
 │   ├── __init__.py
