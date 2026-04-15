@@ -1,4 +1,6 @@
 __pycache__/
 *.pyc
 
-alloggiatiweb_credentials.json
+*.db
+
+extras/

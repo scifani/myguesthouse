@@ -97,14 +97,3 @@ myguesthouse/
 └── README.md
 ```
 
-
-
-
-
-
-
-
-
-
-
- https://helpcenter.avaibook.com/it/articles/6115771-come-posso-ottenere-la-web-key-sul-portale-alloggiati

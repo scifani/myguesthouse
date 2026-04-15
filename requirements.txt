@@ -1,3 +1,5 @@
 requests
 PassportEye
 SQLAlchemy
+flask
+pycountry

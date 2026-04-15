@@ -1,10 +1,24 @@
 from registration.models.guest import Guest, GuestType, GuestGender
 from registration.utils import soap_utils
 from collections import namedtuple
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 import logging
 import xml.etree.ElementTree as ET
+
+
+def _parse_token_expiry(expires_str: str):
+    """Try several datetime formats used by the AlloggiatiWeb SOAP service."""
+    if not expires_str:
+        return None
+    # Strip timezone suffix if present so strptime works on Python < 3.11
+    s = expires_str[:19]
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    return None
 
 """
 Api for AlloggiatiWeb service
@@ -42,11 +56,21 @@ class AlloggiatiWebApi:
         self._user = user
         self._password = password
         self._ws_key = ws_key
-        self._token= self._generate_token()
-        self._locations= None
+        self._token_expires_at = None
+        self._token = self._generate_token()
+        self._locations = None
+
+    def _ensure_valid_token(self):
+        """Refresh the token if it has expired or will expire within 5 minutes."""
+        if self._token_expires_at is None:
+            return
+        if datetime.now() >= self._token_expires_at - timedelta(minutes=5):
+            logging.info("AlloggiatiWeb token expired or close to expiry — refreshing")
+            self._token = self._generate_token()
 
 
     def authentication_test(self) -> Result:
+        self._ensure_valid_token()
         logging.info("Requesting 'Authentication_Test' endpoint")
         soap_envelope = soap_utils.new_envelope(
             soap_utils.new_body(f'''
@@ -62,6 +86,7 @@ class AlloggiatiWebApi:
 
 
     def gestione_appartamenti_test(self, apartment_id: int, guests: list) -> Result:
+        self._ensure_valid_token()
         logging.info("Requesting 'GestioneAppartamenti_Test' endpoint")
         soap_envelope = soap_utils.new_envelope(
             soap_utils.new_body(f'''
@@ -81,6 +106,7 @@ class AlloggiatiWebApi:
 
 
     def test_schedine(self, guests: list) -> Result:
+        self._ensure_valid_token()
         logging.info("Requesting 'Test' endpoint")
         soap_envelope = soap_utils.new_envelope(
             soap_utils.new_body(f'''
@@ -92,13 +118,16 @@ class AlloggiatiWebApi:
               </ElencoSchedine>
             </Test>''')
         )
-        xml_response= soap_utils.make_request(self._url, soap_envelope)
+        xml_response = soap_utils.make_request(self._url, soap_envelope)
         result = self._parse_response(xml_response)
-        logging.info(f"'Test' result: {result}")
-        return result
+        schedine = self._parse_schedine_result(xml_response)
+        logging.info(f"'Test' result: {result}, schedine: {schedine}")
+        return AlloggiatiWebApi.Result(result.success, result.err_code,
+                                       result.err_desc, result.err_detail, schedine)
 
 
     def send_schedine(self, guests: list) -> Result:
+        self._ensure_valid_token()
         logging.info("Requesting 'Send' endpoint")
         soap_envelope = soap_utils.new_envelope(
             soap_utils.new_body(f'''
@@ -110,20 +139,23 @@ class AlloggiatiWebApi:
               </ElencoSchedine>
             </Send>''')
         )
-        xml_response= soap_utils.make_request(self._url, soap_envelope)
+        xml_response = soap_utils.make_request(self._url, soap_envelope)
         result = self._parse_response(xml_response)
-        logging.info(f"'Send' result: {result}")
-        return result
+        schedine = self._parse_schedine_result(xml_response)
+        logging.info(f"'Send' result: {result}, schedine: {schedine}")
+        return AlloggiatiWebApi.Result(result.success, result.err_code,
+                                       result.err_desc, result.err_detail, schedine)
 
 
-    def ricevuta(self, datetime: str) -> Result:
+    def ricevuta(self, datetime: datetime) -> Result:
+        self._ensure_valid_token()
         logging.info(f"Requesting 'Ricevuta' endpoint. datetime: {datetime}")
         soap_envelope = soap_utils.new_envelope(
             soap_utils.new_body(f'''
             <Ricevuta xmlns="AlloggiatiService">
               <Utente>{self._user}</Utente>
               <token>{self._token.token}</token>
-              <Data>{datetime.isoformat()}</Data>
+              <Data>{datetime.strftime("%Y-%m-%dT%H:%M:%S")}</Data>
             </Ricevuta>''')
         )
         xml_response= soap_utils.make_request(self._url, soap_envelope)
@@ -133,6 +165,7 @@ class AlloggiatiWebApi:
 
 
     def tabella(self, table_type: TableType) -> Result:
+        self._ensure_valid_token()
         logging.info(f"Requesting 'Tabella' endpoint. Table type: {table_type}")
         soap_envelope = soap_utils.new_envelope(
             soap_utils.new_body(f'''
@@ -172,16 +205,38 @@ class AlloggiatiWebApi:
             </GenerateToken>''')
         )
         xml_response= soap_utils.make_request(self._url, soap_envelope)
-        result= self._parse_response(xml_response)
+        result = self._parse_response(xml_response)
         if not result.success:
             raise RuntimeError(f"Error: {result.err_code} - {result.err_desc}")
-        token= AlloggiatiWebApi.Token(
+        token = AlloggiatiWebApi.Token(
             xml_response.find('.//ns:GenerateTokenResult/ns:issued', self._namespaces).text,
             xml_response.find('.//ns:GenerateTokenResult/ns:expires', self._namespaces).text,
             xml_response.find('.//ns:GenerateTokenResult/ns:token', self._namespaces).text)
-        logging.debug(f"Token generated: {token}")
+        self._token_expires_at = _parse_token_expiry(token.expires)
+        logging.debug(f"Token generated: {token}, expires_at: {self._token_expires_at}")
         return token
 
+
+    def _parse_schedine_result(self, node: ET.Element) -> dict:
+        """Parse the ElencoSchedineEsito block from a Send/Test response."""
+        data = {'schedine_valide': 0, 'dettaglio': []}
+        result_node = node.find('.//ns:result', self._namespaces)
+        if result_node is None:
+            return data
+        valide = result_node.find('ns:SchedineValide', self._namespaces)
+        if valide is not None:
+            data['schedine_valide'] = int(valide.text)
+        for item in result_node.findall('.//ns:EsitoOperazioneServizio', self._namespaces):
+            def txt(tag):
+                el = item.find(f'ns:{tag}', self._namespaces)
+                return el.text if el is not None else None
+            data['dettaglio'].append({
+                'success': txt('esito') == 'true',
+                'err_code': txt('ErroreCod'),
+                'err_desc': txt('ErroreDes'),
+                'err_detail': txt('ErroreDettaglio'),
+            })
+        return data
 
     def _parse_response(self, node: ET.Element, data_fields: list = []) -> Result:
         success = node.find('.//ns:esito', self._namespaces).text == "true"
