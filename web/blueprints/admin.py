@@ -10,10 +10,10 @@ from flask_login import LoginManager, UserMixin, current_user, login_required, l
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from registration.models.apartment import Apartment, Base as ApartmentBase
-from registration.models.guest import Guest, GuestGender, GuestType
-from registration.models.registered_guest import RegisteredGuest
-from registration.models.reservation import Reservation
+from registration.models import (
+    Base, Apartment, GuestProfile, GuestStay, RegisteredGuest, Reservation,
+    Guest, GuestGender, GuestType,
+)
 from registration.services.alloggiatiweb_api import AlloggiatiWebApi
 from registration.services.registration_service import RegistrationService
 from registration.services.table_service import TableService
@@ -66,21 +66,29 @@ _DATA_DIR = os.environ.get('DATA_DIR', os.path.join(os.path.dirname(__file__), '
 os.makedirs(_DATA_DIR, exist_ok=True)
 _DB_PATH = os.environ.get('DB_PATH', os.path.join(_DATA_DIR, 'myguesthouse.db'))
 _engine = create_engine(f'sqlite:///{_DB_PATH}')
-ApartmentBase.metadata.create_all(_engine)
+Base.metadata.create_all(_engine)
 _Session = sessionmaker(bind=_engine)
 
-RegisteredGuest.__table__.create(_engine, checkfirst=True)
-Reservation.__table__.create(_engine, checkfirst=True)
-
+# Schema migration for databases created before the unified Base (adds columns that
+# were absent in older versions — safe to run on any existing DB).
 with _engine.connect() as _conn:
-    _existing = {row[1] for row in _conn.execute(text('PRAGMA table_info(registration_apartments)'))}
+    _existing_apt = {row[1] for row in _conn.execute(text('PRAGMA table_info(registration_apartments)'))}
     for _col, _def in [
         ('cin', 'VARCHAR(50)'), ('cir', 'VARCHAR(50)'),
         ('comune', 'VARCHAR(100)'), ('indirizzo', 'VARCHAR(200)'),
         ('ross_codice', 'VARCHAR(10)'), ('ross_camere', 'INTEGER'), ('ross_letti', 'INTEGER'),
     ]:
-        if _col not in _existing:
+        if _col not in _existing_apt:
             _conn.execute(text(f'ALTER TABLE registration_apartments ADD COLUMN {_col} {_def}'))
+    _existing_rg = {row[1] for row in _conn.execute(text('PRAGMA table_info(registered_guests)'))}
+    for _col, _def in [
+        ('stay_id', 'VARCHAR(36)'), ('profile_id', 'VARCHAR(36)'),
+    ]:
+        if _col not in _existing_rg:
+            _conn.execute(text(f'ALTER TABLE registered_guests ADD COLUMN {_col} {_def}'))
+    _existing_res = {row[1] for row in _conn.execute(text('PRAGMA table_info(reservations)'))}
+    if 'status' not in _existing_res:
+        _conn.execute(text("ALTER TABLE reservations ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'pending'"))
     _conn.commit()
 
 # ── services ───────────────────────────────────────────────────────────────────
@@ -400,7 +408,11 @@ def _submit(test: bool):
         schedine = result.data or {}
 
         if not test and result.success:
-            _persist_guests(apartment_id, guest_dicts)
+            _persist_guests(
+                apartment_id, guest_dicts,
+                reservation_id=data.get('reservation_id'),
+                save_profiles=bool(data.get('save_profiles', False)),
+            )
 
         return jsonify({
             'success': result.success,
@@ -417,18 +429,60 @@ def _submit(test: bool):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-def _persist_guests(apartment_id: str, guest_dicts: list):
+def _persist_guests(apartment_id: str, guest_dicts: list,
+                    reservation_id: str | None = None, save_profiles: bool = False):
+    import uuid as _uuid
     with _Session() as session:
         apt = session.get(Apartment, apartment_id)
         apt_name = apt.name if apt else None
         now = datetime.utcnow()
+
+        stay = GuestStay(
+            id=str(_uuid.uuid4()),
+            apartment_id=apartment_id,
+            reservation_id=reservation_id,
+            checked_in_at=now,
+            submitted_at=now,
+        )
+        session.add(stay)
+        session.flush()  # get stay.id before creating RegisteredGuest rows
+
         for g in guest_dicts:
             guest_type = str(g.get('guest_type', '16'))
+
+            profile_id = None
+            if save_profiles:
+                profile = GuestProfile(
+                    id=str(_uuid.uuid4()),
+                    gdpr_consent_at=now,
+                    last_name=g.get('last_name', '').upper(),
+                    first_name=g.get('first_name', '').upper(),
+                    gender=g.get('gender', 'X'),
+                    birth_date=g.get('birth_date', ''),
+                    is_italian_born=bool(g.get('is_italian_born', False)),
+                    birth_city_code=g.get('birth_city_code', ''),
+                    birth_city_name=g.get('birth_city_name', ''),
+                    birth_province=g.get('birth_province', ''),
+                    birth_country_code=g.get('birth_country_code', ''),
+                    birth_country_name=g.get('birth_country_name', ''),
+                    citizenship_code=g.get('citizenship_code', ''),
+                    citizenship_name=g.get('citizenship_name', ''),
+                    document_type=g.get('document_type', ''),
+                    document_number=g.get('document_number', ''),
+                    issue_place_code=g.get('issue_place_code', ''),
+                    issue_place_name=g.get('issue_place_name', ''),
+                )
+                session.add(profile)
+                session.flush()
+                profile_id = profile.id
+
             rg = RegisteredGuest(
-                id=__import__('uuid').uuid4().__str__(),
+                id=str(_uuid.uuid4()),
                 apartment_id=apartment_id,
                 apartment_name=apt_name,
                 registered_at=now,
+                stay_id=stay.id,
+                profile_id=profile_id,
                 arrival_date=g.get('arrival_date', ''),
                 num_days=int(g.get('num_days', 1)),
                 guest_type=guest_type,
@@ -451,6 +505,7 @@ def _persist_guests(apartment_id: str, guest_dicts: list):
                 issue_place_name=g.get('issue_place_name', ''),
             )
             session.add(rg)
+
         session.commit()
 
 
@@ -599,3 +654,28 @@ def guests_history():
             q = q.filter(RegisteredGuest.apartment_id == apartment_id)
         q = q.order_by(RegisteredGuest.arrival_date.desc(), RegisteredGuest.registered_at.desc())
         return jsonify([r.to_dict() for r in q.all()])
+
+
+@admin_bp.route('/api/guests/profiles')
+@login_required
+def list_profiles():
+    with _Session() as session:
+        profiles = session.query(GuestProfile).filter(
+            GuestProfile.anonymized_at.is_(None)
+        ).order_by(GuestProfile.last_name, GuestProfile.first_name).all()
+        return jsonify([p.to_dict() for p in profiles])
+
+
+@admin_bp.route('/api/guests/profiles/<profile_id>', methods=['DELETE'])
+@login_required
+def anonymize_profile(profile_id):
+    """GDPR right-to-erasure: anonymise the profile. Police records are unaffected."""
+    with _Session() as session:
+        profile = session.get(GuestProfile, profile_id)
+        if profile is None:
+            return jsonify({'error': 'Non trovato'}), 404
+        if profile.is_anonymized:
+            return jsonify({'error': 'Profilo già anonimizzato'}), 409
+        profile.anonymize()
+        session.commit()
+        return jsonify({'ok': True})

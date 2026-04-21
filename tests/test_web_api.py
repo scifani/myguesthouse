@@ -21,9 +21,9 @@ os.environ.update({
 
 from web.app import create_app                          # noqa: E402
 from web.blueprints.admin import _Session               # noqa: E402
-from registration.models.apartment import Apartment     # noqa: E402
-from registration.models.reservation import Reservation # noqa: E402
-from registration.models.registered_guest import RegisteredGuest  # noqa: E402
+from registration.models import (                       # noqa: E402
+    Apartment, GuestProfile, GuestStay, RegisteredGuest, Reservation,
+)
 
 
 # ── shared app instance (engine is module-level in admin.py) ─────────────────
@@ -35,6 +35,8 @@ def _clean_db():
     """Remove all rows from all tables between tests."""
     with _Session() as s:
         s.query(RegisteredGuest).delete()
+        s.query(GuestProfile).delete()
+        s.query(GuestStay).delete()
         s.query(Reservation).delete()
         s.query(Apartment).delete()
         s.commit()

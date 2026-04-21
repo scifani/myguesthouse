@@ -36,11 +36,22 @@ python3 -m unittest registration.tests.test_mrz_reader
 ## Architecture
 
 ```
-core/           DatabaseService — SQLAlchemy engine + session factory
-reservation/    Apartment/GuestHouse/Reservation ORM models + CRUD services
-registration/   AlloggiatiWeb client + guest model + Flask web UI
-web/            Flask app (registration UI only)
+core/           DatabaseService — SQLAlchemy engine + session factory (unused by web layer)
+registration/   All domain models + AlloggiatiWeb client + Flask web UI
+web/            Flask app factory + blueprints
 ```
+
+### Domain model
+
+All ORM models share a single `Base` from `registration/models/base.py`.
+
+| Model | Table | Purpose |
+|---|---|---|
+| `Apartment` | `registration_apartments` | Rentable unit with AlloggiatiWeb credentials and ROSS1000 fields |
+| `Reservation` | `reservations` | Booking record (calendar entry) |
+| `GuestStay` | `guest_stays` | Check-in event linking a Reservation to its police reports |
+| `RegisteredGuest` | `registered_guests` | Immutable police record (one per guest per stay); kept for legal obligation |
+| `GuestProfile` | `guest_profiles` | Reusable guest data stored with GDPR consent; erasable independently of police records |
 
 ### `registration/` module in detail
 
@@ -68,6 +79,6 @@ The Flask app in `web/app.py` wires all of these together. Table service and gue
 - Italy itself: code `100000100`
 - Expired entries have a non-empty `DataFineVal` and are skipped on load
 
-### Known architectural issue
+### SQLAlchemy Base
 
-`reservation/models/apartment.py`, `reservation/models/reservation.py`, and `reservation/models/guest_house.py` each call `declarative_base()` independently. SQLAlchemy relationships require a **shared** `Base`. This must be fixed before the reservation module can be used with a real database. The `Base` in `core/services/database_service.py` should be the single shared instance.
+All `reservation/` models (`GuestHouse`, `Apartment`, `Reservation`) share a single `Base` imported from `core.services.database_service`. `DatabaseService.__init__` calls `Base.metadata.create_all()` so all tables are created when the service is instantiated.

@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
 
-from registration.models.apartment import Base
+from registration.models.base import Base
 
 
 class RegisteredGuest(Base):
@@ -13,6 +14,11 @@ class RegisteredGuest(Base):
     apartment_id = Column(String(36), nullable=False)
     apartment_name = Column(String(100))
     registered_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    stay_id = Column(String(36), ForeignKey('guest_stays.id'), nullable=True)
+    profile_id = Column(String(36), ForeignKey('guest_profiles.id'), nullable=True)
+
+    stay = relationship('GuestStay', back_populates='guests')
+    profile = relationship('GuestProfile')
 
     arrival_date = Column(String(10), nullable=False)   # YYYY-MM-DD
     num_days = Column(Integer)

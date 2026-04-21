@@ -1,10 +1,6 @@
 import uuid
 from sqlalchemy import Column, Integer, String
-from sqlalchemy.orm import DeclarativeBase
-
-
-class Base(DeclarativeBase):
-    pass
+from registration.models.base import Base
 
 
 class Apartment(Base):
