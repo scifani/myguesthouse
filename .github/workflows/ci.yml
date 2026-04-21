@@ -23,5 +23,3 @@ jobs:
 
       - name: Run tests
         run: python -m unittest discover -v -s tests -p "test_*.py"
-        env:
-          CONFIG_FILE: config.example.yaml

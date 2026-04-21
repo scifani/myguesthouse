@@ -16,7 +16,7 @@ os.environ.update({
     'ADMIN_USERNAME':  'admin',
     'ADMIN_PASSWORD':  'testpass',
     'SECRET_KEY':      'test-secret-key',
-    'CONFIG_FILE':     os.path.join(os.path.dirname(__file__), '..', 'config.yaml'),
+    'CONFIG_FILE':     os.path.join(os.path.dirname(__file__), '..', 'config.example.yaml'),
 })
 
 from web.app import create_app                          # noqa: E402
@@ -420,7 +420,7 @@ class TestPublicSite(unittest.TestCase):
     def test_index_renders_property_name(self):
         r = self.client.get('/')
         self.assertEqual(r.status_code, 200)
-        self.assertIn(b'Casa degli Ulivi', r.data)
+        self.assertIn(b'My Guesthouse', r.data)  # matches config.example.yaml
 
     def test_index_has_navbar(self):
         r = self.client.get('/')
