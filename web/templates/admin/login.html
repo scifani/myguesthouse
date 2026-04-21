@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}Accesso — {{ site.property.name | default('MyGuestHouse') }}{% endblock %}
+{% block body_class %}bg-gray-200{% endblock %}
+
+{% block body %}
+<section>
+  <div class="page-header section-height-100">
+    <div class="container">
+      <div class="row">
+
+        <!-- Login form -->
+        <div class="col-xl-4 col-lg-5 col-md-7 d-flex flex-column mx-lg-0 mx-auto">
+          <div class="card card-plain mt-8">
+            <div class="card-header pb-0 text-start">
+              <h4 class="font-weight-bolder mb-0">Accesso</h4>
+              <p class="mb-0 text-sm">Inserisci le tue credenziali per accedere</p>
+            </div>
+            <div class="card-body">
+              {% if error %}
+              <div class="alert alert-danger text-white font-weight-bold text-sm py-2 mb-3">
+                {{ error }}
+              </div>
+              {% endif %}
+              <form method="POST" action="/login{% if request.args.get('next') %}?next={{ request.args.get('next') }}{% endif %}">
+                <div class="mb-3">
+                  <input type="text" name="username" class="form-control form-control-lg"
+                         placeholder="Utente" autofocus autocomplete="username">
+                </div>
+                <div class="mb-3">
+                  <input type="password" name="password" class="form-control form-control-lg"
+                         placeholder="Password" autocomplete="current-password">
+                </div>
+                <div class="text-center mt-4">
+                  <button type="submit" class="btn btn-lg bg-gradient-primary w-100 mb-0">
+                    Accedi
+                  </button>
+                </div>
+              </form>
+            </div>
+            <div class="card-footer text-center pt-0 px-lg-2 px-1">
+              <p class="mb-0 text-sm text-muted">
+                <a href="/" class="text-dark font-weight-bold ms-1">← Torna al sito</a>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gradient panel (desktop only) -->
+        <div class="col-6 d-lg-flex d-none h-100 my-auto pe-0 position-absolute top-0 end-0 text-center justify-content-center flex-column">
+          <div class="position-relative bg-gradient-primary h-100 m-3 px-7 border-radius-lg d-flex flex-column justify-content-center overflow-hidden">
+            <div class="text-white text-center">
+              <h3 class="text-white font-weight-bolder mb-2">
+                {{ site.property.name | default('MyGuestHouse') }}
+              </h3>
+              {% if site.property.tagline %}
+              <p class="text-white opacity-8">{{ site.property.tagline }}</p>
+              {% endif %}
+              {% if site.property.location.address %}
+              <p class="text-white opacity-6 text-sm mt-3 mb-0">
+                📍 {{ site.property.location.address }}
+              </p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

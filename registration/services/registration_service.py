@@ -1,6 +1,9 @@
 import logging
+import re
 from registration.models.guest import Guest
 from registration.services.alloggiatiweb_api import AlloggiatiWebApi
+
+_DATE_RE = re.compile(r'^\d{2}/\d{2}/\d{4}$')
 
 # Fixed-width field limits defined by the AlloggiatiWeb record format
 _FIELD_MAX_LENGTHS = {
@@ -61,7 +64,7 @@ class RegistrationService:
             if guest.num_days < 1 or guest.num_days > 30:
                 errors.append(f"{label}: num_days deve essere tra 1 e 30")
 
-            if guest.birth_date and len(guest.birth_date) != 10:
+            if guest.birth_date and not _DATE_RE.match(guest.birth_date):
                 errors.append(f"{label}: birth_date deve essere in formato gg/mm/aaaa")
 
         if errors:

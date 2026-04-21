@@ -1,6 +1,8 @@
 requests
-PassportEye
 SQLAlchemy
 flask
+flask-login
 pycountry
 holidays
+gunicorn
+pyyaml

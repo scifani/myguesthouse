@@ -2,5 +2,9 @@ __pycache__/
 *.pyc
 
 *.db
+data/
 
 extras/
+
+.env
+config.yaml

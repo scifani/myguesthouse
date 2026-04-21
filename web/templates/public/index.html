@@ -1,0 +1,310 @@
+{% extends 'base.html' %}
+{% block title %}{{ site.property.name | default('MyGuestHouse') }} — {{ site.property.tagline | default('') }}{% endblock %}
+
+{% block head %}
+<style>
+  .navbar-main { transition: box-shadow .25s ease-in, background-color .25s ease-in; }
+  .hero-section { background: linear-gradient(135deg, #1a2e1f 0%, #2d4a35 100%); }
+  .apt-card .card-header-img {
+    height: 180px; background: linear-gradient(135deg,
+      color-mix(in srgb, var(--brand) 65%, white),
+      var(--brand));
+    border-radius: 0.75rem 0.75rem 0 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .feature-icon {
+    width: 48px; height: 48px; border-radius: 0.75rem;
+    background-image: linear-gradient(195deg,
+      color-mix(in srgb, var(--brand) 65%, white),
+      var(--brand));
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    box-shadow: 0 4px 7px -1px rgba(0,0,0,.11);
+  }
+  .section-oblique { clip-path: polygon(0 0, 100% 0, 100% 88%, 0 100%); }
+  footer a { text-decoration: none; }
+  footer a:hover { color: rgba(255,255,255,.8) !important; }
+</style>
+{% endblock %}
+
+{% block body %}
+
+<!-- ── Floating Navbar ───────────────────────────────────────────────────── -->
+<div class="container position-sticky z-index-sticky top-0">
+  <div class="row">
+    <div class="col-12">
+      <nav class="navbar navbar-expand-lg blur blur-rounded top-0 z-index-fixed shadow position-absolute my-3 py-2 start-0 end-0 mx-4 navbar-main">
+        <div class="container-fluid pe-0">
+          <a class="navbar-brand font-weight-bolder ms-sm-2 me-4" href="/">
+            {{ site.property.name | default('MyGuestHouse') }}
+          </a>
+          <button class="navbar-toggler shadow-none ms-2" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#navContent"
+                  aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon mt-2">
+              <span class="navbar-toggler-bar bar1"></span>
+              <span class="navbar-toggler-bar bar2"></span>
+              <span class="navbar-toggler-bar bar3"></span>
+            </span>
+          </button>
+          <div class="collapse navbar-collapse" id="navContent">
+            <ul class="navbar-nav ms-auto">
+              {% if site.apartments %}<li class="nav-item"><a class="nav-link" href="#appartamenti">Appartamenti</a></li>{% endif %}
+              {% if site.property.location %}<li class="nav-item"><a class="nav-link" href="#dove-siamo">Dove siamo</a></li>{% endif %}
+              {% if site.contact.phone or site.contact.email or site.contact.whatsapp %}
+              <li class="nav-item"><a class="nav-link" href="#contatti">Contatti</a></li>
+              {% endif %}
+              <li class="nav-item ms-lg-2">
+                <a class="btn btn-sm bg-gradient-primary mb-0" href="/login">Area riservata</a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </div>
+</div>
+
+<!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+<header>
+  <div class="page-header section-height-75 hero-section">
+    <span class="mask bg-gradient-primary opacity-7"></span>
+    <div class="container">
+      <div class="row justify-content-center text-center">
+        <div class="col-lg-8">
+          <h1 class="text-white display-4 font-weight-bolder mb-3">
+            {{ site.property.name | default('MyGuestHouse') }}
+          </h1>
+          {% if site.property.tagline %}
+          <p class="text-white lead mb-4 opacity-8">{{ site.property.tagline }}</p>
+          {% endif %}
+          {% if site.property.location.address %}
+          <p class="text-white opacity-7 mb-4">
+            <i class="ni ni-pin-3 me-1"></i>{{ site.property.location.address }}
+          </p>
+          {% endif %}
+          {% if site.contact.phone or site.contact.email or site.contact.whatsapp %}
+          <a href="#contatti" class="btn bg-gradient-primary btn-lg mt-2 me-2">Contattaci</a>
+          {% endif %}
+          {% if site.apartments %}
+          <a href="#appartamenti" class="btn btn-outline-white btn-lg mt-2">Scopri gli appartamenti</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <!-- Wave SVG -->
+    <div class="position-absolute w-100 bottom-0 overflow-hidden" style="height:80px">
+      <svg viewBox="0 0 1440 80" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"
+           style="display:block; width:100%; height:100%">
+        <path d="M0,80 C360,0 1080,0 1440,80 L1440,80 L0,80 Z" fill="#ffffff"/>
+      </svg>
+    </div>
+  </div>
+</header>
+
+<!-- ── Description ──────────────────────────────────────────────────────── -->
+{% if site.property.description %}
+<section class="py-6">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-8 text-center">
+        <p class="lead text-dark opacity-8" style="line-height:1.85">
+          {{ site.property.description }}
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<!-- ── Apartments ───────────────────────────────────────────────────────── -->
+{% if site.apartments %}
+<section class="py-6 bg-gray-100" id="appartamenti">
+  <div class="container">
+    <div class="row mb-5">
+      <div class="col-12 text-center">
+        <h2 class="font-weight-bolder">Gli appartamenti</h2>
+        <p class="lead text-muted">Scegli il tuo spazio ideale</p>
+      </div>
+    </div>
+    <div class="row g-4 justify-content-center">
+      {% for apt in site.apartments %}
+      <div class="col-md-6 col-lg-5">
+        <div class="card shadow-lg border-0 h-100 overflow-hidden apt-card">
+          <div class="apt-card-header-img">
+            <span class="text-white fs-1 opacity-4">🏠</span>
+          </div>
+          <div class="p-0 mx-3 mt-3">
+            <div class="border-radius-lg"
+                 style="height:160px; background-image: linear-gradient(195deg,
+                   color-mix(in srgb, var(--brand) 65%, white),
+                   var(--brand));
+                   border-radius: 0.75rem;">
+            </div>
+          </div>
+          <div class="card-body pt-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <h5 class="font-weight-bolder mb-0">{{ apt.name }}</h5>
+              {% if apt.size %}<span class="badge badge-sm bg-gradient-primary">{{ apt.size }}</span>{% endif %}
+            </div>
+            {% if apt.description %}
+            <p class="text-sm text-muted mb-3">{{ apt.description }}</p>
+            {% endif %}
+            {% if apt.features %}
+            <ul class="list-unstyled mb-3">
+              {% for f in apt.features %}
+              <li class="d-flex align-items-center py-1">
+                <div class="icon icon-xs me-2" style="color: var(--brand)">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                    <path d="M9 16.2l-4.2-4.2-1.4 1.4 5.6 5.6 12-12-1.4-1.4z"/>
+                  </svg>
+                </div>
+                <span class="text-sm">{{ f }}</span>
+              </li>
+              {% endfor %}
+            </ul>
+            {% endif %}
+            {% if apt.max_guests %}
+            <p class="text-xs text-muted mb-0">
+              <i class="ni ni-single-02 me-1"></i>Fino a <strong>{{ apt.max_guests }} ospiti</strong>
+            </p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<!-- ── Location ─────────────────────────────────────────────────────────── -->
+{% if site.property.location and (site.property.location.description or site.property.location.google_maps_embed_url) %}
+<section class="py-6" id="dove-siamo">
+  <div class="container">
+    <div class="row align-items-center">
+      <div class="col-lg-5 mb-4 mb-lg-0">
+        <div class="p-3">
+          <span class="text-uppercase text-xs font-weight-bolder opacity-6 mb-2 d-block"
+                style="color: var(--brand)">Dove siamo</span>
+          {% if site.property.location.address %}
+          <h3 class="font-weight-bolder mb-3">{{ site.property.location.address }}</h3>
+          {% endif %}
+          {% if site.property.location.description %}
+          <p class="text-muted">{{ site.property.location.description }}</p>
+          {% endif %}
+          {% if site.contact.phone %}
+          <p class="mt-3 mb-1 text-sm">
+            <strong>Tel:</strong>
+            <a href="tel:{{ site.contact.phone }}" class="ms-1 text-dark">{{ site.contact.phone }}</a>
+          </p>
+          {% endif %}
+          {% if site.contact.email %}
+          <p class="mb-0 text-sm">
+            <strong>Email:</strong>
+            <a href="mailto:{{ site.contact.email }}" class="ms-1 text-dark">{{ site.contact.email }}</a>
+          </p>
+          {% endif %}
+        </div>
+      </div>
+      <div class="col-lg-7">
+        {% if site.property.location.google_maps_embed_url %}
+        <div class="border-radius-xl overflow-hidden shadow-lg" style="height:320px">
+          <iframe src="{{ site.property.location.google_maps_embed_url }}"
+                  width="100%" height="100%" style="border:0"
+                  allowfullscreen loading="lazy"
+                  referrerpolicy="no-referrer-when-downgrade"></iframe>
+        </div>
+        {% else %}
+        <div class="border-radius-xl shadow-lg d-flex align-items-center justify-content-center"
+             style="height:240px; background-image: linear-gradient(195deg,
+               color-mix(in srgb, var(--brand) 65%, white),
+               var(--brand))">
+          <div class="text-center text-white">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="white" class="opacity-6 mb-2">
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+            </svg>
+            {% if site.property.location.address %}
+            <p class="text-white mb-0 font-weight-bold">{{ site.property.location.address }}</p>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<!-- ── Contacts ──────────────────────────────────────────────────────────── -->
+{% set has_contact = site.contact.phone or site.contact.email or site.contact.whatsapp %}
+{% if has_contact %}
+<section class="py-6 bg-gray-100" id="contatti">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="card blur shadow-lg border-0">
+          <div class="card-body p-5 text-center">
+            <h3 class="font-weight-bolder mb-2">Contattaci</h3>
+            <p class="text-muted mb-4">Siamo a tua disposizione per qualsiasi informazione o prenotazione.</p>
+            <div class="row justify-content-center g-3">
+              {% if site.contact.phone %}
+              <div class="col-auto">
+                <a href="tel:{{ site.contact.phone }}"
+                   class="btn btn-outline-primary btn-lg d-flex align-items-center gap-2">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                    <path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/>
+                  </svg>
+                  {{ site.contact.phone }}
+                </a>
+              </div>
+              {% endif %}
+              {% if site.contact.email %}
+              <div class="col-auto">
+                <a href="mailto:{{ site.contact.email }}"
+                   class="btn btn-outline-primary btn-lg d-flex align-items-center gap-2">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                    <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                  </svg>
+                  {{ site.contact.email }}
+                </a>
+              </div>
+              {% endif %}
+              {% if site.contact.whatsapp %}
+              <div class="col-auto">
+                <a href="https://wa.me/{{ site.contact.whatsapp | replace('+','') | replace(' ','') }}"
+                   target="_blank" rel="noopener"
+                   class="btn bg-gradient-primary btn-lg text-white d-flex align-items-center gap-2">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                    <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.556 4.127 1.528 5.862L0 24l6.341-1.513A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.874 0-3.623-.492-5.139-1.348l-.369-.218-3.766.899.933-3.663-.239-.385A9.953 9.953 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+                  </svg>
+                  WhatsApp
+                </a>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<!-- ── Footer ────────────────────────────────────────────────────────────── -->
+<footer class="footer py-5 bg-dark">
+  <div class="container">
+    <div class="row align-items-center justify-content-between">
+      <div class="col-auto">
+        <p class="text-secondary text-sm mb-0">
+          © {{ site.property.name | default('MyGuestHouse') }}
+        </p>
+      </div>
+      <div class="col-auto">
+        <a href="/login" class="text-secondary text-sm opacity-6">Area riservata</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+{% endblock %}

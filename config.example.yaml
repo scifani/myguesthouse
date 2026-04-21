@@ -1,0 +1,31 @@
+# Copy this file to config.yaml and fill in your details.
+
+property:
+  name: "My Guesthouse"
+  tagline: "Your home away from home"
+  description: >
+    A short description of your property shown on the public website.
+  location:
+    address: "City, Region, Country"
+    description: >
+      A few sentences about your location: nearby attractions, how to get there, etc.
+    google_maps_embed_url: ""   # Paste the src URL from Google Maps > Share > Embed a map
+
+contact:
+  phone: "+39 000 0000000"
+  email: "info@example.com"
+  whatsapp: "+39 000 0000000"   # leave empty to hide the WhatsApp button
+
+branding:
+  primary_color: "#0d6efd"    # any CSS color value
+
+apartments:
+  - name: "Apartment 1"
+    size: "60 m²"
+    max_guests: 4
+    description: "Optional short description shown on the public site."
+    features:
+      - "2 bedrooms"
+      - "Fully equipped kitchen"
+      - "Free Wi-Fi"
+      - "Air conditioning"

@@ -1,0 +1,1726 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ site.property.name | default('MyGuestHouse') }} — Gestione</title>
+
+  <!-- Fonts & Icons -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/nucleo-icons.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/nucleo-svg.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/soft-design-system.min.css') }}">
+
+  <style>
+    {% set brand = site.branding.primary_color | default('#4a7c59') %}
+    :root { --brand: {{ brand }}; }
+    .bg-gradient-primary, .mask.bg-gradient-primary {
+      background-image: linear-gradient(195deg,
+        color-mix(in srgb, {{ brand }} 65%, white) 0%, {{ brand }} 100%) !important;
+    }
+    .btn.bg-gradient-primary {
+      background-image: linear-gradient(195deg,
+        color-mix(in srgb, {{ brand }} 65%, white) 0%, {{ brand }} 100%) !important;
+      border: none;
+    }
+    .text-gradient.text-primary {
+      background-image: linear-gradient(195deg,
+        color-mix(in srgb, {{ brand }} 65%, white) 0%, {{ brand }} 100%) !important;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    /* Layout */
+    body { background: #f8f9fa; }
+    .admin-navbar { position: sticky; top: 0; z-index: 100; }
+
+    /* Autocomplete */
+    .ac-wrapper { position: relative; }
+    .ac-dropdown {
+      position: absolute; top: 100%; left: 0; right: 0; z-index: 1050;
+      background: #fff; border: 1px solid #dee2e6; border-top: none;
+      border-radius: 0 0 .5rem .5rem;
+      max-height: 220px; overflow-y: auto;
+      box-shadow: 0 4px 16px rgba(0,0,0,.1);
+    }
+    .ac-item { padding: .45rem .75rem; cursor: pointer; font-size: .9rem; }
+    .ac-item:hover { background: #f0f7f3; }
+
+    /* Guest form */
+    #guestForm { display: none; }
+    .section-toggle label { cursor: pointer; user-select: none; }
+
+    /* Scan area */
+    #scanArea {
+      border: 2px dashed #dee2e6; border-radius: .75rem;
+      padding: 1.75rem; text-align: center; cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    #scanArea:hover, #scanArea.drag-over {
+      border-color: var(--brand); background: #f0f7f3;
+    }
+    #scanArea input[type=file] { display: none; }
+
+    /* Disabled overlay */
+    #mainContent.disabled { opacity: .45; pointer-events: none; user-select: none; }
+    #resultBox { min-height: 3rem; }
+
+    /* Nav tabs (pill style) */
+    #mainTabs .nav-link {
+      color: #67748e; border-radius: .5rem; padding: .5rem 1rem;
+      font-size: .875rem; font-weight: 600;
+    }
+    #mainTabs .nav-link.active {
+      background-image: linear-gradient(195deg,
+        color-mix(in srgb, {{ brand }} 65%, white) 0%, {{ brand }} 100%);
+      color: #fff; box-shadow: 0 4px 7px -1px rgba(0,0,0,.11);
+    }
+    #mainTabs { border-bottom: 1px solid #dee2e6; padding-bottom: 0; }
+
+    /* Cards */
+    .card { border: 0; border-radius: 1rem; }
+    .card-header-custom {
+      background: transparent; border-bottom: 1px solid #f0f0f0;
+      padding: 1rem 1.25rem; font-weight: 600; font-size: .9rem; color: #344767;
+    }
+
+    /* Calendar */
+    #calTable { font-size: .82rem; table-layout: fixed; min-width: 600px; }
+    #calTable th { text-align: center; vertical-align: middle; white-space: nowrap;
+                   background: #f8f9fa; position: sticky; top: 0; z-index: 2;
+                   font-weight: 600; color: #67748e; }
+    #calTable td { vertical-align: middle; padding: .2rem .35rem; height: 2.1rem;
+                   cursor: pointer; border: 1px solid #f0f0f0; }
+    #calTable td.day-num { width: 3.2rem; text-align: center; cursor: default;
+                           font-weight: 600; background: #f8f9fa; color: #344767; }
+    #calTable td.day-num.day-holiday { color: #dc3545; background: #fff5f5; font-weight: 700; }
+    #calTable td.day-num.today {
+      background-image: linear-gradient(195deg,
+        color-mix(in srgb, {{ brand }} 65%, white) 0%, {{ brand }} 100%) !important;
+      color: #fff !important;
+    }
+    #calTable td.res-cell { cursor: pointer; }
+    #calTable td.res-cell:hover { filter: brightness(.93); }
+    #calTable td.free-cell:hover { background: #f0f7f3 !important; }
+    #calTable .res-label { font-size: .75rem; line-height: 1.2;
+                           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .res-checkin-marker { font-size: .65rem; margin-right: .2rem; }
+  </style>
+</head>
+<body>
+
+<!-- Top navbar -->
+<nav class="navbar shadow-sm admin-navbar" style="background-image: linear-gradient(195deg, color-mix(in srgb, {{ site.branding.primary_color | default('#4a7c59') }} 65%, white) 0%, {{ site.branding.primary_color | default('#4a7c59') }} 100%)">
+  <div class="container-fluid px-4">
+    <a class="navbar-brand font-weight-bolder text-white" href="/admin">
+      {{ site.property.name | default('MyGuestHouse') }}
+    </a>
+    <div class="d-flex align-items-center gap-3">
+      <span id="aptBadge" class="badge" style="background: rgba(255,255,255,.2); color:#fff">
+        Nessun appartamento selezionato
+      </span>
+      <a href="/" class="text-white opacity-6 small text-decoration-none d-none d-md-inline">Sito</a>
+      <a href="/logout" class="text-white small text-decoration-none">Esci</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+  <ul class="nav nav-tabs mb-4 mt-0 border-bottom-0" id="mainTabs">
+    <li class="nav-item">
+      <a class="nav-link active" href="#" id="tabRegistrazioneLink" onclick="showTab('registrazione');return false;">Registrazione</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="#" id="tabStoricoLink" onclick="showTab('storico');return false;">Storico Ospiti</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="#" id="tabPrenotazioniLink" onclick="showTab('prenotazioni');return false;">Prenotazioni</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="#" id="tabAppartamentiLink" onclick="showTab('appartamenti');return false;">Appartamenti</a>
+    </li>
+  </ul>
+</div>
+
+<div class="container pb-5">
+
+  <!-- ── Apartment selector ────────────────────────────────────────────── -->
+  <div class="card mb-3">
+    <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+      <label class="fw-semibold mb-0 text-nowrap">Appartamento:</label>
+      <select class="form-select" id="apartmentSelect" style="max-width:260px"
+              onchange="onApartmentChange()">
+        <option value="">— Seleziona —</option>
+      </select>
+      <a href="#" class="btn btn-outline-secondary btn-sm"
+         onclick="showTab('appartamenti');return false;">Gestisci appartamenti</a>
+      <span id="aptConnStatus" class="small text-muted"></span>
+    </div>
+  </div>
+
+  <!-- ── Main content (disabled until apartment selected) ──────────────── -->
+  <div id="mainContent" class="disabled">
+
+    <!-- Stay details (shared for all guests) -->
+    <div class="card mb-3">
+      <div class="card-body py-2">
+        <div class="row g-3 align-items-end">
+          <div class="col-auto">
+            <label class="form-label mb-1 fw-semibold">Data arrivo <span class="text-danger">*</span></label>
+            <input type="date" class="form-control form-control-sm" id="s_arrival_date" style="width:160px">
+          </div>
+          <div class="col-auto">
+            <label class="form-label mb-1 fw-semibold">Giorni permanenza <span class="text-danger">*</span></label>
+            <input type="number" class="form-control form-control-sm" id="s_num_days"
+                   min="1" max="30" value="1" style="width:100px">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Guest list -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Ospiti da inviare <span id="guestCount" class="badge bg-primary ms-1">0</span></span>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-danger" onclick="newRegistration()"
+                  title="Svuota la lista e inizia una nuova registrazione">
+            Nuova registrazione
+          </button>
+          <button class="btn btn-sm btn-primary" id="btnAddGuest" onclick="openForm()">
+            + Aggiungi ospite
+          </button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover table-sm mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>#</th><th>Tipo</th><th>Cognome e Nome</th>
+                <th>Arrivo</th><th>Giorni</th><th>Nascita</th><th>Documento</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="guestTableBody">
+              <tr><td colspan="8" class="text-center text-muted py-3">
+                Nessun ospite aggiunto.
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Guest form -->
+    <div class="card mb-3" id="guestForm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span id="formTitle">Nuovo ospite</span>
+        <button type="button" class="btn-close" onclick="closeForm()"></button>
+      </div>
+      <div class="card-body">
+
+        <!-- Scan area -->
+        <div id="scanArea" onclick="document.getElementById('docImage').click()"
+             ondragover="event.preventDefault();this.classList.add('drag-over')"
+             ondragleave="this.classList.remove('drag-over')"
+             ondrop="handleDrop(event)">
+          <input type="file" id="docImage" accept="image/*" onchange="scanDocument(this.files[0])">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor"
+               class="text-muted mb-2" viewBox="0 0 16 16">
+            <path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/>
+            <path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12z"/>
+          </svg>
+          <div class="text-muted">Trascina un'immagine del documento oppure clicca per selezionare</div>
+          <div id="scanStatus" class="mt-1"></div>
+        </div>
+
+        <hr>
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-4">
+            <label class="form-label">Tipo ospite <span class="text-danger">*</span></label>
+            <select class="form-select" id="f_guest_type"></select>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-5">
+            <label class="form-label">Cognome <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="f_last_name"
+                   oninput="this.value=this.value.toUpperCase()">
+          </div>
+          <div class="col-sm-5">
+            <label class="form-label">Nome <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="f_first_name"
+                   oninput="this.value=this.value.toUpperCase()">
+          </div>
+          <div class="col-sm-2">
+            <label class="form-label">Sesso <span class="text-danger">*</span></label>
+            <select class="form-select" id="f_gender">
+              <option value="M">M</option>
+              <option value="F">F</option>
+              <option value="X">X</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-4">
+            <label class="form-label">Data di nascita <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="f_birth_date"
+                   placeholder="gg/mm/aaaa" maxlength="10">
+            <div class="form-text">Formato: gg/mm/aaaa</div>
+          </div>
+        </div>
+
+        <div class="section-toggle mb-2">
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="birthLocation"
+                   id="bornInItaly" value="it" checked onchange="toggleBirthLocation()">
+            <label class="form-check-label" for="bornInItaly">Nato in Italia</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="birthLocation"
+                   id="bornAbroad" value="abroad" onchange="toggleBirthLocation()">
+            <label class="form-check-label" for="bornAbroad">Nato all'estero</label>
+          </div>
+        </div>
+
+        <div id="birthItalySection" class="row g-3 mb-3">
+          <div class="col-sm-7">
+            <label class="form-label">Comune di nascita <span class="text-danger">*</span></label>
+            <div class="ac-wrapper">
+              <input type="text" class="form-control" id="f_birth_city_name"
+                     placeholder="Cerca comune..." autocomplete="off"
+                     oninput="acSearch(this,'f_birth_city_code','municipalities',onMunicipalitySelect)">
+              <input type="hidden" id="f_birth_city_code">
+              <div class="ac-dropdown" id="ac_f_birth_city_name" style="display:none"></div>
+            </div>
+          </div>
+          <div class="col-sm-2">
+            <label class="form-label">Provincia</label>
+            <input type="text" class="form-control" id="f_birth_province" readonly>
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label">Stato di nascita</label>
+            <input type="text" class="form-control" value="ITALIA" readonly>
+            <input type="hidden" id="f_birth_country_code_it" value="100000100">
+          </div>
+        </div>
+
+        <div id="birthAbroadSection" class="row g-3 mb-3" style="display:none">
+          <div class="col-sm-6">
+            <label class="form-label">Stato di nascita <span class="text-danger">*</span></label>
+            <div class="ac-wrapper">
+              <input type="text" class="form-control" id="f_birth_country_name"
+                     placeholder="Cerca stato..." autocomplete="off"
+                     oninput="acSearch(this,'f_birth_country_code','countries',null)">
+              <input type="hidden" id="f_birth_country_code">
+              <div class="ac-dropdown" id="ac_f_birth_country_name" style="display:none"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            <label class="form-label">Cittadinanza <span class="text-danger">*</span></label>
+            <div class="ac-wrapper">
+              <input type="text" class="form-control" id="f_citizenship_name"
+                     placeholder="Cerca stato..." autocomplete="off"
+                     oninput="acSearch(this,'f_citizenship_code','countries',null)">
+              <input type="hidden" id="f_citizenship_code">
+              <div class="ac-dropdown" id="ac_f_citizenship_name" style="display:none"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-4">
+            <label class="form-label">Tipo documento <span class="text-danger">*</span></label>
+            <select class="form-select" id="f_document_type"></select>
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label">Numero documento <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="f_document_number"
+                   oninput="this.value=this.value.toUpperCase()">
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label">Luogo rilascio <span class="text-danger">*</span></label>
+            <div class="ac-wrapper">
+              <input type="text" class="form-control" id="f_issue_place_name"
+                     placeholder="Comune o stato..." autocomplete="off"
+                     oninput="acSearch(this,'f_issue_place_code','places',null)">
+              <input type="hidden" id="f_issue_place_code">
+              <div class="ac-dropdown" id="ac_f_issue_place_name" style="display:none"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button class="btn btn-primary" onclick="saveGuest()">
+            <span id="saveBtnLabel">Aggiungi ospite</span>
+          </button>
+          <button class="btn btn-outline-secondary" onclick="closeForm()">Annulla</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Send section -->
+    <div class="card">
+      <div class="card-body d-flex gap-3 align-items-center flex-wrap">
+        <button class="btn btn-outline-secondary" id="btnTest" onclick="submit(true)">
+          Prova invio (test)
+        </button>
+        <button class="btn btn-success" id="btnSend" onclick="submit(false)">
+          Invia ad AlloggiatiWeb
+        </button>
+        <div class="d-flex align-items-center gap-2">
+          <input type="date" class="form-control form-control-sm" id="ricevutaDate"
+                 style="width:150px">
+          <button class="btn btn-outline-primary" id="btnRicevuta" onclick="downloadRicevuta()">
+            Scarica ricevuta
+          </button>
+        </div>
+        <div id="resultBox" class="flex-grow-1"></div>
+      </div>
+    </div>
+
+    <!-- ROSS1000 export -->
+    <div class="card mt-3">
+      <div class="card-header">Esporta XML ROSS1000</div>
+      <div class="card-body">
+        <div class="row g-3 align-items-end">
+          <div class="col-auto">
+            <label class="form-label mb-1">Periodo inizio</label>
+            <input type="date" class="form-control form-control-sm" id="ross_start" style="width:160px">
+          </div>
+          <div class="col-auto">
+            <label class="form-label mb-1">Periodo fine</label>
+            <input type="date" class="form-control form-control-sm" id="ross_end" style="width:160px">
+          </div>
+          <div class="col-auto">
+            <label class="form-label mb-1">Canale prenotazione</label>
+            <select class="form-select form-select-sm" id="ross_canale" style="width:210px">
+              <option value="Non specificato">Non specificato</option>
+              <option value="Diretta tradizionale">Diretta tradizionale</option>
+              <option value="Diretta web">Diretta web</option>
+              <option value="Indiretta tradizionale">Indiretta tradizionale</option>
+              <option value="Indiretta web">Indiretta web</option>
+              <option value="Altro canale">Altro canale</option>
+            </select>
+          </div>
+          <div class="col-auto">
+            <button class="btn btn-sm btn-outline-success" onclick="generateRossXml()">
+              Genera XML ROSS1000
+            </button>
+          </div>
+        </div>
+        <div id="rossInfo" class="mt-2 small text-muted"></div>
+      </div>
+    </div>
+
+  </div><!-- /mainContent -->
+
+  <!-- ── Storico Ospiti ────────────────────────────────────────────────────── -->
+  <div id="storicoContent" style="display:none">
+
+    <div class="card mb-3">
+      <div class="card-header">Filtri</div>
+      <div class="card-body">
+        <div class="row g-3 align-items-end">
+          <div class="col-auto">
+            <label class="form-label mb-1 fw-semibold">Data arrivo da</label>
+            <input type="date" class="form-control form-control-sm" id="h_date_from" style="width:160px">
+          </div>
+          <div class="col-auto">
+            <label class="form-label mb-1 fw-semibold">Data arrivo a</label>
+            <input type="date" class="form-control form-control-sm" id="h_date_to" style="width:160px">
+          </div>
+          <div class="col-auto">
+            <label class="form-label mb-1 fw-semibold">Nome / Cognome</label>
+            <input type="text" class="form-control form-control-sm" id="h_name"
+                   placeholder="Cerca..." style="width:200px"
+                   oninput="scheduleHistorySearch()">
+          </div>
+          <div class="col-auto">
+            <label class="form-label mb-1 fw-semibold">Appartamento</label>
+            <select class="form-select form-select-sm" id="h_apartment" style="width:220px"
+                    onchange="loadHistory()">
+              <option value="">Tutti</option>
+            </select>
+          </div>
+          <div class="col-auto pt-1">
+            <button class="btn btn-sm btn-primary" onclick="loadHistory()">Cerca</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Ospiti registrati</span>
+        <span id="historyCount" class="badge bg-secondary">0</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Arrivo</th>
+                <th>Notti</th>
+                <th>Cognome</th>
+                <th>Nome</th>
+                <th>Sesso</th>
+                <th>Nascita</th>
+                <th>Cittadinanza</th>
+                <th>Documento</th>
+                <th>Appartamento</th>
+                <th>Registrato il</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody">
+              <tr><td colspan="10" class="text-center text-muted py-3">Nessun risultato.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /storicoContent -->
+
+  <!-- ── Prenotazioni ────────────────────────────────────────────────────────── -->
+  <div id="prenotazioniContent" style="display:none">
+
+    <!-- Month navigator -->
+    <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+      <button class="btn btn-outline-secondary btn-sm" onclick="calPrevMonth()">&#8592;</button>
+      <h5 class="mb-0" id="calTitle" style="min-width:180px;text-align:center"></h5>
+      <button class="btn btn-outline-secondary btn-sm" onclick="calNextMonth()">&#8594;</button>
+      <button class="btn btn-sm btn-outline-primary ms-2" onclick="calGoToday()">Oggi</button>
+    </div>
+
+    <div class="card">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-bordered mb-0" id="calTable">
+            <thead id="calHead"></thead>
+            <tbody id="calBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /prenotazioniContent -->
+
+  <!-- ── Appartamenti ────────────────────────────────────────────────────────── -->
+  <div id="appartamentiContent" style="display:none">
+
+    <div class="card mb-3">
+      <div class="card-header">Appartamenti registrati</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0" id="aptListTable">
+          <thead class="table-light">
+            <tr><th>Nome</th><th>Utente AlloggiatiWeb</th><th></th></tr>
+          </thead>
+          <tbody id="aptListBody">
+            <tr><td colspan="3" class="text-muted text-center py-3">Nessun appartamento registrato.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header" id="aptFormTitle">Nuovo appartamento</div>
+      <div class="card-body">
+        <input type="hidden" id="apt_edit_id">
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            <label class="form-label">Nome <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="apt_name" placeholder="Es. Appartamento 1">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">CIN — Codice Identificativo Nazionale</label>
+            <input type="text" class="form-control" id="apt_cin" placeholder="IT...">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">CIR — Codice Identificativo Regionale</label>
+            <input type="text" class="form-control" id="apt_cir">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Comune</label>
+            <input type="text" class="form-control" id="apt_comune">
+          </div>
+          <div class="col-sm-12">
+            <label class="form-label">Indirizzo</label>
+            <input type="text" class="form-control" id="apt_indirizzo" placeholder="Via/Piazza, numero civico">
+          </div>
+        </div>
+
+        <hr class="my-3">
+        <h6 class="text-muted fw-normal">AlloggiatiWeb</h6>
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            <label class="form-label">Utente <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="apt_aw_user" placeholder="Es. AB001234">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Password <span class="text-danger">*</span></label>
+            <input type="password" class="form-control" id="apt_aw_password" autocomplete="new-password">
+          </div>
+          <div class="col-sm-12">
+            <label class="form-label">WS Key <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="apt_aw_ws_key" placeholder="Base64...">
+          </div>
+        </div>
+
+        <hr class="my-3">
+        <h6 class="text-muted fw-normal">ROSS1000 <small>(opzionale)</small></h6>
+        <div class="row g-3 mb-3">
+          <div class="col-sm-4">
+            <label class="form-label">Codice struttura</label>
+            <input type="text" class="form-control" id="apt_ross_codice"
+                   placeholder="A00000" pattern="[A-Za-z][0-9]{5}" maxlength="7">
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label">Camere disponibili</label>
+            <input type="number" class="form-control" id="apt_ross_camere" min="1">
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label">Letti disponibili</label>
+            <input type="number" class="form-control" id="apt_ross_letti" min="1">
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 align-items-center">
+          <button class="btn btn-primary" onclick="saveApartment()">Salva</button>
+          <button class="btn btn-outline-secondary" onclick="resetAptForm()">Nuovo</button>
+          <button class="btn btn-outline-info" onclick="testApartmentCredentials()">
+            Test connessione
+          </button>
+          <span id="aptTestResult" class="small ms-2"></span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /appartamentiContent -->
+
+</div><!-- /container -->
+
+
+<!-- ── Reservation modal ─────────────────────────────────────────────────────── -->
+<div class="modal fade" id="resModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="resModalTitle">Nuova prenotazione</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="res_id">
+        <div class="row g-3 mb-2">
+          <div class="col-sm-6">
+            <label class="form-label">Check-in <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="res_checkin">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Check-out <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="res_checkout">
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Appartamento <span class="text-danger">*</span></label>
+          <select class="form-select" id="res_apartment"></select>
+        </div>
+        <div class="row g-3 mb-2">
+          <div class="col-sm-7">
+            <label class="form-label">Nome ospite</label>
+            <input type="text" class="form-control" id="res_guest_name" placeholder="Es. Mario Rossi">
+          </div>
+          <div class="col-sm-5">
+            <label class="form-label">N. ospiti</label>
+            <input type="text" class="form-control" id="res_num_guests" placeholder="Es. 2 adulti, 2+1">
+          </div>
+        </div>
+        <div class="row g-3 mb-2">
+          <div class="col-sm-6">
+            <label class="form-label">Canale</label>
+            <select class="form-select" id="res_source">
+              <option value="">— Seleziona —</option>
+              <option value="Booking">Booking</option>
+              <option value="Airbnb">Airbnb</option>
+              <option value="Diretto">Diretto</option>
+              <option value="Altro">Altro</option>
+            </select>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Prezzo</label>
+            <input type="text" class="form-control" id="res_price" placeholder="Es. 120€/notte">
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Note</label>
+          <textarea class="form-control" id="res_notes" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <button class="btn btn-outline-danger btn-sm" id="resDeleteBtn" onclick="deleteReservation()" style="display:none">
+          Elimina
+        </button>
+        <div class="d-flex gap-2">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+          <button class="btn btn-primary" onclick="saveReservation()">Salva</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='assets/js/soft-design-system.min.js') }}"></script>
+<script>
+// ── state ─────────────────────────────────────────────────────────────────────
+let guests = [];
+let editIndex = -1;
+let selectedApartment = null;
+let _apartmentsCache = {};
+
+// ── tab navigation ────────────────────────────────────────────────────────────
+const _TABS = {
+  registrazione: { content: 'mainContent',        link: 'tabRegistrazioneLink'  },
+  storico:       { content: 'storicoContent',      link: 'tabStoricoLink'        },
+  prenotazioni:  { content: 'prenotazioniContent', link: 'tabPrenotazioniLink'   },
+  appartamenti:  { content: 'appartamentiContent', link: 'tabAppartamentiLink'   },
+};
+
+function showTab(tab) {
+  Object.entries(_TABS).forEach(([key, cfg]) => {
+    document.getElementById(cfg.content).style.display = key === tab ? '' : 'none';
+    document.getElementById(cfg.link).classList.toggle('active', key === tab);
+  });
+  if (tab === 'storico')      { populateHistoryAptFilter(); loadHistory(); }
+  if (tab === 'prenotazioni') { loadCalendar(); }
+  if (tab === 'appartamenti') { loadApartments(); }
+}
+
+function populateHistoryAptFilter() {
+  const sel = document.getElementById('h_apartment');
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">Tutti</option>';
+  Object.values(_apartmentsCache).sort((a, b) => a.name.localeCompare(b.name)).forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a.id; opt.textContent = a.name;
+    sel.appendChild(opt);
+  });
+  sel.value = currentVal;
+}
+
+let _historyTimer = null;
+function scheduleHistorySearch() {
+  clearTimeout(_historyTimer);
+  _historyTimer = setTimeout(loadHistory, 300);
+}
+
+async function loadHistory() {
+  const params = new URLSearchParams();
+  const df = document.getElementById('h_date_from').value;
+  const dt = document.getElementById('h_date_to').value;
+  const name = document.getElementById('h_name').value.trim();
+  const apt = document.getElementById('h_apartment').value;
+  if (df) params.set('date_from', df);
+  if (dt) params.set('date_to', dt);
+  if (name) params.set('name', name);
+  if (apt) params.set('apartment_id', apt);
+
+  const tbody = document.getElementById('historyTableBody');
+  tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-3">Caricamento...</td></tr>';
+  const records = await fetch('/api/guests/history?' + params).then(r => r.json());
+  document.getElementById('historyCount').textContent = records.length;
+
+  if (!records.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-3">Nessun risultato.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = records.map(r => {
+    const birth = r.is_italian_born
+      ? `${r.birth_city_name || ''} (${r.birth_province || ''}) — ITALIA`
+      : (r.birth_country_name || '');
+    const docNum = r.document_number ? `${r.document_type} ${r.document_number}` : '';
+    const regAt = r.registered_at ? r.registered_at.replace('T', ' ') : '';
+    return `<tr>
+      <td>${r.arrival_date || ''}</td>
+      <td>${r.num_days ?? ''}</td>
+      <td>${_esc(r.last_name)}</td>
+      <td>${_esc(r.first_name)}</td>
+      <td>${r.gender || ''}</td>
+      <td class="small">${_esc(birth)}</td>
+      <td class="small">${_esc(r.citizenship_name)}</td>
+      <td class="small">${_esc(docNum)}</td>
+      <td class="small">${_esc(r.apartment_name)}</td>
+      <td class="small text-muted">${regAt}</td>
+    </tr>`;
+  }).join('');
+}
+
+function _esc(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── prenotazioni calendar ─────────────────────────────────────────────────────
+const _MONTHS_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
+                    'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+const _DAYS_IT   = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+const _CAL_PALETTE = [
+  {bg:'#dbeafe', color:'#1e40af'},
+  {bg:'#d1fae5', color:'#065f46'},
+  {bg:'#fce7f3', color:'#9d174d'},
+  {bg:'#fef3c7', color:'#92400e'},
+  {bg:'#ede9fe', color:'#4c1d95'},
+  {bg:'#ffedd5', color:'#7c2d12'},
+];
+
+let _calYear  = new Date().getFullYear();
+let _calMonth = new Date().getMonth() + 1;
+let _calReservations = [];
+let _calHolidays = {};
+let _resModal = null;
+
+function calPrevMonth() {
+  _calMonth--; if (_calMonth < 1) { _calMonth = 12; _calYear--; }
+  loadCalendar();
+}
+function calNextMonth() {
+  _calMonth++; if (_calMonth > 12) { _calMonth = 1; _calYear++; }
+  loadCalendar();
+}
+function calGoToday() {
+  const n = new Date();
+  _calYear = n.getFullYear(); _calMonth = n.getMonth() + 1;
+  loadCalendar();
+}
+
+async function loadCalendar() {
+  document.getElementById('calTitle').textContent =
+    `${_MONTHS_IT[_calMonth-1]} ${_calYear}`;
+
+  const apts = Object.values(_apartmentsCache).sort((a,b) => a.name.localeCompare(b.name));
+
+  const [reservations] = await Promise.all([
+    fetch('/api/reservations?' + new URLSearchParams({year: _calYear, month: _calMonth})).then(r => r.json()),
+    _ensureHolidays(_calYear),
+  ]);
+  _calReservations = reservations;
+
+  _renderCalHead(apts);
+  _renderCalBody(apts);
+}
+
+async function _ensureHolidays(year) {
+  if (!_calHolidays[year]) {
+    const data = await fetch(`/api/holidays/${year}`).then(r => r.json());
+    _calHolidays[year] = new Set(Object.keys(data));
+  }
+}
+
+function _renderCalHead(apts) {
+  const head = document.getElementById('calHead');
+  let html = '<tr><th style="width:3.2rem">Giorno</th>';
+  apts.forEach(a => { html += `<th>${_esc(a.name)}</th>`; });
+  html += '</tr>';
+  head.innerHTML = html;
+}
+
+function _renderCalBody(apts) {
+  const today = new Date().toISOString().slice(0,10);
+  const daysInMonth = new Date(_calYear, _calMonth, 0).getDate();
+  const resMap = {};
+  apts.forEach(a => { resMap[a.id] = []; });
+  _calReservations.forEach(r => { if (resMap[r.apartment_id]) resMap[r.apartment_id].push(r); });
+
+  const colorMap = {};
+  apts.forEach(a => {
+    const sorted = [...(resMap[a.id] || [])].sort((x, y) => x.checkin_date.localeCompare(y.checkin_date));
+    sorted.forEach((r, i) => { colorMap[r.id] = _CAL_PALETTE[i % _CAL_PALETTE.length]; });
+  });
+
+  const holidays = _calHolidays[_calYear] || new Set();
+  let html = '';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr  = `${_calYear}-${String(_calMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dow      = new Date(dateStr).getDay();
+    const isRed    = dow === 0 || holidays.has(dateStr);
+    const isToday  = dateStr === today;
+    const dayLabel = `${String(d).padStart(2,'0')} ${_DAYS_IT[dow]}`;
+
+    html += `<tr>`;
+    html += `<td class="day-num${isRed?' day-holiday':''}${isToday?' today':''}">${dayLabel}</td>`;
+    apts.forEach(a => { html += _calCell(a.id, dateStr, resMap[a.id] || [], isRed, colorMap); });
+    html += '</tr>';
+  }
+  document.getElementById('calBody').innerHTML = html;
+}
+
+function _calCell(aptId, dateStr, list, isRed, colorMap) {
+  const arriving  = list.find(r => r.checkin_date  === dateStr);
+  const departing = list.find(r => r.checkout_date === dateStr);
+  const staying   = list.find(r => r.checkin_date  <  dateStr && r.checkout_date > dateStr);
+
+  if (!arriving && !departing && !staying) {
+    const bg = isRed ? 'background:#fff0f0' : '';
+    return `<td class="free-cell" style="${bg}" onclick="openNewResModal('${aptId}','${dateStr}')"></td>`;
+  }
+
+  if (arriving && departing) {
+    const as = colorMap[arriving.id], ds = colorMap[departing.id];
+    const lbl = _arrLabel(arriving, as.color);
+    return `<td class="cal-cell" style="padding:0">` +
+      `<div style="display:flex;height:100%;min-height:2rem">` +
+        `<div style="flex:1;background:${ds.bg};cursor:pointer" ` +
+             `onclick="openResModal('${departing.id}')" title="${_resTooltip(departing)}"></div>` +
+        `<div style="flex:1;background:${as.bg};cursor:pointer;display:flex;align-items:center;overflow:hidden" ` +
+             `onclick="openResModal('${arriving.id}')" title="${_resTooltip(arriving)}">` +
+          `<div class="res-label" style="color:${as.color};padding:0 .2rem">${lbl}</div>` +
+        `</div>` +
+      `</div></td>`;
+  }
+
+  if (arriving) {
+    const as = colorMap[arriving.id];
+    const lbl = _arrLabel(arriving, as.color);
+    return `<td class="res-cell" onclick="openResModal('${arriving.id}')" title="${_resTooltip(arriving)}"` +
+      ` style="background:linear-gradient(to right,transparent 50%,${as.bg} 50%)">` +
+      `<div class="res-label" style="color:${as.color};margin-left:50%">${lbl}</div></td>`;
+  }
+
+  if (departing) {
+    const ds = colorMap[departing.id];
+    return `<td class="cal-cell" style="padding:0">` +
+      `<div style="display:flex;height:100%;min-height:2rem">` +
+        `<div style="flex:1;background:${ds.bg};cursor:pointer" ` +
+             `onclick="openResModal('${departing.id}')" title="${_resTooltip(departing)}"></div>` +
+        `<div style="flex:1;cursor:pointer${isRed?';background:#fff0f0':''}" ` +
+             `onclick="openNewResModal('${aptId}','${dateStr}')"></div>` +
+      `</div></td>`;
+  }
+
+  const ss = colorMap[staying.id];
+  return `<td class="res-cell" onclick="openResModal('${staying.id}')" title="${_resTooltip(staying)}"` +
+    ` style="background:${ss.bg}"></td>`;
+}
+
+function _arrLabel(r, color) {
+  const src  = r.source    ? `<span class="res-checkin-marker">▶</span>${_esc(r.source)} ` : '';
+  const name = r.guest_name ? _esc(r.guest_name) : '';
+  const ng   = r.num_guests ? ` · ${_esc(r.num_guests)}` : '';
+  return `${src}${name}${ng}`;
+}
+
+function _resTooltip(r) {
+  const parts = [];
+  if (r.guest_name) parts.push(r.guest_name);
+  if (r.num_guests) parts.push(r.num_guests);
+  if (r.source)     parts.push(r.source);
+  if (r.checkin_date && r.checkout_date)
+    parts.push(`${r.checkin_date} → ${r.checkout_date}`);
+  if (r.price) parts.push(r.price);
+  if (r.notes) parts.push(r.notes);
+  return parts.join(' | ').replace(/"/g, '&quot;');
+}
+
+function _fillResAptSelect(selectedId) {
+  const sel = document.getElementById('res_apartment');
+  sel.innerHTML = '';
+  Object.values(_apartmentsCache).sort((a,b) => a.name.localeCompare(b.name)).forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a.id; opt.textContent = a.name;
+    sel.appendChild(opt);
+  });
+  if (selectedId) sel.value = selectedId;
+}
+
+function openNewResModal(aptId, dateStr) {
+  document.getElementById('resModalTitle').textContent = 'Nuova prenotazione';
+  document.getElementById('res_id').value = '';
+  document.getElementById('res_checkin').value = dateStr;
+  const d = new Date(dateStr); d.setDate(d.getDate() + 1);
+  document.getElementById('res_checkout').value = d.toISOString().slice(0,10);
+  document.getElementById('res_guest_name').value = '';
+  document.getElementById('res_num_guests').value = '';
+  document.getElementById('res_source').value = '';
+  document.getElementById('res_price').value = '';
+  document.getElementById('res_notes').value = '';
+  document.getElementById('resDeleteBtn').style.display = 'none';
+  _fillResAptSelect(aptId);
+  _resModal.show();
+}
+
+function openResModal(id) {
+  const r = _calReservations.find(r => r.id === id);
+  if (!r) return;
+  document.getElementById('resModalTitle').textContent = 'Modifica prenotazione';
+  document.getElementById('res_id').value = r.id;
+  document.getElementById('res_checkin').value = r.checkin_date;
+  document.getElementById('res_checkout').value = r.checkout_date;
+  document.getElementById('res_guest_name').value = r.guest_name || '';
+  document.getElementById('res_num_guests').value = r.num_guests || '';
+  document.getElementById('res_source').value = r.source || '';
+  document.getElementById('res_price').value = r.price || '';
+  document.getElementById('res_notes').value = r.notes || '';
+  document.getElementById('resDeleteBtn').style.display = '';
+  _fillResAptSelect(r.apartment_id);
+  _resModal.show();
+}
+
+async function saveReservation() {
+  const id       = document.getElementById('res_id').value;
+  const payload  = {
+    apartment_id:  document.getElementById('res_apartment').value,
+    checkin_date:  document.getElementById('res_checkin').value,
+    checkout_date: document.getElementById('res_checkout').value,
+    guest_name:    document.getElementById('res_guest_name').value.trim() || null,
+    num_guests:    document.getElementById('res_num_guests').value.trim() || null,
+    source:        document.getElementById('res_source').value || null,
+    price:         document.getElementById('res_price').value.trim() || null,
+    notes:         document.getElementById('res_notes').value.trim() || null,
+  };
+  if (!payload.apartment_id || !payload.checkin_date || !payload.checkout_date) {
+    alert('Appartamento, check-in e check-out sono obbligatori.'); return;
+  }
+  if (payload.checkin_date >= payload.checkout_date) {
+    alert('Il check-out deve essere dopo il check-in.'); return;
+  }
+  const url    = id ? `/api/reservations/${id}` : '/api/reservations';
+  const method = id ? 'PUT' : 'POST';
+  const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+  const data = await res.json();
+  if (!res.ok) { alert(data.error || 'Errore salvataggio'); return; }
+  _resModal.hide();
+  loadCalendar();
+}
+
+async function deleteReservation() {
+  const id = document.getElementById('res_id').value;
+  if (!id || !confirm('Eliminare questa prenotazione?')) return;
+  await fetch(`/api/reservations/${id}`, {method: 'DELETE'});
+  _resModal.hide();
+  loadCalendar();
+}
+
+// ── new registration ──────────────────────────────────────────────────────────
+function newRegistration() {
+  if (guests.length > 0 &&
+      !confirm('Svuotare la lista ospiti e iniziare una nuova registrazione?')) return;
+  guests = [];
+  closeForm();
+  renderGuestTable();
+  document.getElementById('s_arrival_date').value = todayISO();
+  document.getElementById('s_num_days').value = 1;
+  document.getElementById('resultBox').innerHTML = '';
+}
+
+// ── boot ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  _resModal = new bootstrap.Modal(document.getElementById('resModal'));
+  await Promise.all([loadGuestTypes(), loadDocumentTypes(), loadApartments()]);
+  document.getElementById('s_arrival_date').value = todayISO();
+  document.getElementById('ricevutaDate').value = todayISO();
+  const _now = new Date();
+  document.getElementById('ross_start').value =
+    new Date(_now.getFullYear(), _now.getMonth(), 1).toISOString().slice(0, 10);
+  document.getElementById('ross_end').value =
+    new Date(_now.getFullYear(), _now.getMonth() + 1, 0).toISOString().slice(0, 10);
+  document.getElementById('h_date_from').value =
+    new Date(_now.getFullYear(), _now.getMonth(), 1).toISOString().slice(0, 10);
+  document.getElementById('h_date_to').value =
+    new Date(_now.getFullYear(), _now.getMonth() + 1, 0).toISOString().slice(0, 10);
+});
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// ── apartment management ──────────────────────────────────────────────────────
+async function loadApartments() {
+  const apts = await fetch('/api/apartments').then(r => r.json());
+  _apartmentsCache = Object.fromEntries(apts.map(a => [a.id, a]));
+  const sel = document.getElementById('apartmentSelect');
+  const currentId = selectedApartment?.id;
+  sel.innerHTML = '<option value="">— Seleziona —</option>';
+  apts.forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a.id; opt.textContent = a.name;
+    sel.appendChild(opt);
+  });
+  if (currentId) { sel.value = currentId; selectedApartment = _apartmentsCache[currentId] || selectedApartment; }
+
+  renderAptList(apts);
+}
+
+function renderAptList(apts) {
+  const tbody = document.getElementById('aptListBody');
+  if (!apts.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="text-muted text-center">Nessun appartamento registrato.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = apts.map(a => `
+    <tr>
+      <td>${a.name}</td>
+      <td><code>${a.aw_user}</code></td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-outline-primary me-1" onclick="editApartment('${a.id}')">✏️</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="deleteApartment('${a.id}', '${a.name}')">🗑️</button>
+      </td>
+    </tr>`).join('');
+}
+
+async function editApartment(id) {
+  const apt = await fetch(`/api/apartments/${id}`).then(r => r.json());
+  document.getElementById('apt_edit_id').value = apt.id;
+  document.getElementById('apt_name').value = apt.name;
+  document.getElementById('apt_cin').value = apt.cin || '';
+  document.getElementById('apt_cir').value = apt.cir || '';
+  document.getElementById('apt_comune').value = apt.comune || '';
+  document.getElementById('apt_indirizzo').value = apt.indirizzo || '';
+  document.getElementById('apt_aw_user').value = apt.aw_user;
+  document.getElementById('apt_aw_password').value = apt.aw_password;
+  document.getElementById('apt_aw_ws_key').value = apt.aw_ws_key;
+  document.getElementById('apt_ross_codice').value = apt.ross_codice || '';
+  document.getElementById('apt_ross_camere').value = apt.ross_camere || '';
+  document.getElementById('apt_ross_letti').value = apt.ross_letti || '';
+  document.getElementById('aptFormTitle').textContent = 'Modifica appartamento';
+  document.getElementById('aptTestResult').textContent = '';
+}
+
+async function saveApartment() {
+  const id = document.getElementById('apt_edit_id').value;
+  const payload = {
+    name: document.getElementById('apt_name').value.trim(),
+    cin: document.getElementById('apt_cin').value.trim() || null,
+    cir: document.getElementById('apt_cir').value.trim() || null,
+    comune: document.getElementById('apt_comune').value.trim() || null,
+    indirizzo: document.getElementById('apt_indirizzo').value.trim() || null,
+    aw_user: document.getElementById('apt_aw_user').value.trim(),
+    aw_password: document.getElementById('apt_aw_password').value,
+    aw_ws_key: document.getElementById('apt_aw_ws_key').value.trim(),
+    ross_codice: document.getElementById('apt_ross_codice').value.trim() || null,
+    ross_camere: document.getElementById('apt_ross_camere').value || null,
+    ross_letti: document.getElementById('apt_ross_letti').value || null,
+  };
+  if (!payload.name || !payload.aw_user || !payload.aw_password || !payload.aw_ws_key) {
+    alert('Tutti i campi sono obbligatori.');
+    return;
+  }
+  const url = id ? `/api/apartments/${id}` : '/api/apartments';
+  const method = id ? 'PUT' : 'POST';
+  const res = await fetch(url, {
+    method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(data.error || 'Errore salvataggio'); return; }
+  await loadApartments();
+  resetAptForm();
+}
+
+async function deleteApartment(id, name) {
+  if (!confirm(`Eliminare "${name}"?`)) return;
+  await fetch(`/api/apartments/${id}`, {method: 'DELETE'});
+  if (selectedApartment?.id === id) {
+    selectedApartment = null;
+    document.getElementById('apartmentSelect').value = '';
+    updatePageState();
+  }
+  await loadApartments();
+}
+
+function resetAptForm() {
+  document.getElementById('apt_edit_id').value = '';
+  document.getElementById('apt_name').value = '';
+  document.getElementById('apt_cin').value = '';
+  document.getElementById('apt_cir').value = '';
+  document.getElementById('apt_comune').value = '';
+  document.getElementById('apt_indirizzo').value = '';
+  document.getElementById('apt_aw_user').value = '';
+  document.getElementById('apt_aw_password').value = '';
+  document.getElementById('apt_aw_ws_key').value = '';
+  document.getElementById('apt_ross_codice').value = '';
+  document.getElementById('apt_ross_camere').value = '';
+  document.getElementById('apt_ross_letti').value = '';
+  document.getElementById('aptFormTitle').textContent = 'Nuovo appartamento';
+  document.getElementById('aptTestResult').textContent = '';
+}
+
+async function testApartmentCredentials() {
+  const payload = {
+    aw_user: document.getElementById('apt_aw_user').value.trim(),
+    aw_password: document.getElementById('apt_aw_password').value,
+    aw_ws_key: document.getElementById('apt_aw_ws_key').value.trim(),
+  };
+  const el = document.getElementById('aptTestResult');
+  el.textContent = 'Test in corso...';
+  el.className = 'small ms-2 text-muted';
+  const res = await fetch('/api/apartments/test-credentials', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (data.ok) {
+    el.textContent = '✓ Connessione riuscita';
+    el.className = 'small ms-2 text-success';
+  } else {
+    el.textContent = '✗ ' + (data.error || 'Errore');
+    el.className = 'small ms-2 text-danger';
+  }
+}
+
+// ── apartment selection ───────────────────────────────────────────────────────
+function onApartmentChange() {
+  const sel = document.getElementById('apartmentSelect');
+  selectedApartment = sel.value ? (_apartmentsCache[sel.value] || {id: sel.value, name: sel.options[sel.selectedIndex].text}) : null;
+  updatePageState();
+}
+
+function updatePageState() {
+  const ok = selectedApartment !== null;
+  document.getElementById('mainContent').classList.toggle('disabled', !ok);
+  const badge = document.getElementById('aptBadge');
+  if (ok) {
+    badge.textContent = selectedApartment.name;
+    badge.className = 'badge bg-success';
+  } else {
+    badge.textContent = 'Nessun appartamento selezionato';
+    badge.className = 'badge bg-secondary';
+  }
+  document.getElementById('aptConnStatus').textContent = '';
+  const rossInfo = document.getElementById('rossInfo');
+  if (rossInfo) {
+    if (ok && selectedApartment?.ross_codice) {
+      rossInfo.textContent = `Struttura: ${selectedApartment.ross_codice} · ${selectedApartment.ross_camere ?? '?'} camere · ${selectedApartment.ross_letti ?? '?'} letti`;
+      rossInfo.className = 'mt-2 small text-muted';
+    } else if (ok) {
+      rossInfo.innerHTML = '<span class="text-warning">Codice struttura ROSS1000 non configurato — modificare l\'appartamento per abilitare l\'esportazione.</span>';
+      rossInfo.className = 'mt-2 small';
+    } else {
+      rossInfo.textContent = '';
+    }
+  }
+}
+
+// ── lookup tables ─────────────────────────────────────────────────────────────
+async function loadGuestTypes() {
+  const types = await fetch('/api/guest-types').then(r => r.json());
+  const sel = document.getElementById('f_guest_type');
+  types.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.code; opt.textContent = t.label;
+    sel.appendChild(opt);
+  });
+  window._guestTypeLabels = Object.fromEntries(types.map(t => [t.code, t.label]));
+}
+
+async function loadDocumentTypes() {
+  const types = await fetch('/api/document-types').then(r => r.json());
+  const sel = document.getElementById('f_document_type');
+  types.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.code; opt.textContent = `${t.code} — ${t.label}`;
+    sel.appendChild(opt);
+  });
+}
+
+// ── autocomplete ──────────────────────────────────────────────────────────────
+let _acTimer = null;
+
+function acSearch(inputEl, codeInputId, endpoint, onSelect) {
+  document.getElementById(codeInputId).value = '';
+  clearTimeout(_acTimer);
+  const q = inputEl.value.trim();
+  if (q.length < 2) { acHide(inputEl.id); return; }
+  _acTimer = setTimeout(async () => {
+    const results = await fetch(`/api/${endpoint}?q=${encodeURIComponent(q)}`).then(r => r.json());
+    acShow(inputEl.id, results, document.getElementById(codeInputId), onSelect);
+  }, 200);
+}
+
+function acShow(inputId, results, codeInput, onSelect) {
+  const dd = document.getElementById('ac_' + inputId);
+  dd.innerHTML = '';
+  if (!results.length) { dd.style.display = 'none'; return; }
+  results.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'ac-item';
+    div.textContent = item.label || item.name || '';
+    div.onmousedown = () => {
+      document.getElementById(inputId).value = item.label || item.name || '';
+      codeInput.value = item.code;
+      dd.style.display = 'none';
+      if (onSelect) onSelect(item);
+    };
+    dd.appendChild(div);
+  });
+  dd.style.display = 'block';
+}
+
+function acHide(inputId) {
+  const dd = document.getElementById('ac_' + inputId);
+  if (dd) dd.style.display = 'none';
+}
+
+document.addEventListener('click', e => {
+  document.querySelectorAll('.ac-dropdown').forEach(dd => {
+    if (!dd.parentElement.contains(e.target)) dd.style.display = 'none';
+  });
+});
+
+function onMunicipalitySelect(item) {
+  document.getElementById('f_birth_province').value = item.province || '';
+}
+
+// ── birth location toggle ─────────────────────────────────────────────────────
+function toggleBirthLocation() {
+  const abroad = document.getElementById('bornAbroad').checked;
+  document.getElementById('birthItalySection').style.display = abroad ? 'none' : '';
+  document.getElementById('birthAbroadSection').style.display = abroad ? '' : 'none';
+}
+
+// ── document scan ─────────────────────────────────────────────────────────────
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('scanArea').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) scanDocument(file);
+}
+
+async function scanDocument(file) {
+  if (!file) return;
+  setScanStatus('Scansione in corso...', 'text-muted');
+  const form = new FormData();
+  form.append('image', file);
+  try {
+    const res = await fetch('/api/scan', {method: 'POST', body: form});
+    const data = await res.json();
+    if (!data.success) { setScanStatus(data.error || 'Errore scansione', 'text-danger'); return; }
+    prefillForm(data.data);
+    setScanStatus('Documento acquisito — verifica i dati e completa i campi mancanti.', 'text-success');
+  } catch (err) {
+    setScanStatus('Errore di rete', 'text-danger');
+  }
+}
+
+function setScanStatus(msg, cls) {
+  const el = document.getElementById('scanStatus');
+  el.textContent = msg; el.className = 'mt-1 small ' + cls;
+}
+
+function prefillForm(d) {
+  setField('f_last_name', d.last_name);
+  setField('f_first_name', d.first_name);
+  setSelect('f_gender', d.gender || 'X');
+  setField('f_birth_date', d.birth_date);
+  setSelect('f_document_type', d.document_type);
+  setField('f_document_number', d.document_number);
+  if (d.citizenship_code) {
+    setField('f_citizenship_name', d.citizenship_name);
+    document.getElementById('f_citizenship_code').value = d.citizenship_code;
+  }
+  if (d.is_italian_born) {
+    document.getElementById('bornInItaly').checked = true;
+    toggleBirthLocation();
+    ['f_birth_city_name','f_birth_city_code','f_birth_province'].forEach(id => setField(id, ''));
+  } else {
+    document.getElementById('bornAbroad').checked = true;
+    toggleBirthLocation();
+    if (d.birth_country_code) {
+      setField('f_birth_country_name', d.birth_country_name);
+      document.getElementById('f_birth_country_code').value = d.birth_country_code;
+    }
+  }
+}
+
+// ── form helpers ──────────────────────────────────────────────────────────────
+function setField(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.value = val || '';
+}
+
+function setSelect(id, val) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  for (const opt of el.options) { if (opt.value === val) { opt.selected = true; break; } }
+}
+
+// ── form open / close ─────────────────────────────────────────────────────────
+function openForm(index) {
+  editIndex = (index !== undefined) ? index : -1;
+  document.getElementById('formTitle').textContent =
+    editIndex >= 0 ? `Modifica ospite ${editIndex + 1}` : 'Nuovo ospite';
+  document.getElementById('saveBtnLabel').textContent =
+    editIndex >= 0 ? 'Salva modifiche' : 'Aggiungi ospite';
+  editIndex >= 0 ? fillFormFromGuest(guests[editIndex]) : resetForm();
+  document.getElementById('guestForm').style.display = 'block';
+  document.getElementById('guestForm').scrollIntoView({behavior: 'smooth'});
+}
+
+function closeForm() {
+  document.getElementById('guestForm').style.display = 'none';
+  editIndex = -1;
+}
+
+function resetForm() {
+  ['f_last_name','f_first_name','f_birth_date','f_document_number',
+   'f_birth_city_name','f_birth_city_code','f_birth_province',
+   'f_birth_country_name','f_birth_country_code',
+   'f_citizenship_name','f_citizenship_code',
+   'f_issue_place_name','f_issue_place_code'].forEach(id => setField(id, ''));
+  document.getElementById('f_gender').value = 'M';
+  document.getElementById('bornInItaly').checked = true;
+  toggleBirthLocation();
+  document.getElementById('scanStatus').textContent = '';
+}
+
+function fillFormFromGuest(g) {
+  setField('f_guest_type', g.guest_type);
+  setField('f_last_name', g.last_name);
+  setField('f_first_name', g.first_name);
+  setSelect('f_gender', g.gender);
+  setField('f_birth_date', g.birth_date);
+  setField('f_document_number', g.document_number);
+  setSelect('f_document_type', g.document_type);
+  setField('f_issue_place_name', g.issue_place_name);
+  setField('f_issue_place_code', g.issue_place_code);
+  setField('f_citizenship_name', g.citizenship_name);
+  setField('f_citizenship_code', g.citizenship_code);
+  if (g.is_italian_born) {
+    document.getElementById('bornInItaly').checked = true; toggleBirthLocation();
+    setField('f_birth_city_name', g.birth_city_name);
+    setField('f_birth_city_code', g.birth_city_code);
+    setField('f_birth_province', g.birth_province);
+  } else {
+    document.getElementById('bornAbroad').checked = true; toggleBirthLocation();
+    setField('f_birth_country_name', g.birth_country_name);
+    setField('f_birth_country_code', g.birth_country_code);
+  }
+}
+
+// ── save guest ────────────────────────────────────────────────────────────────
+function saveGuest() {
+  const abroad = document.getElementById('bornAbroad').checked;
+  const guestType = document.getElementById('f_guest_type').value;
+  const g = {
+    guest_type: guestType,
+    guest_type_label: (window._guestTypeLabels || {})[guestType] || guestType,
+    arrival_date: document.getElementById('s_arrival_date').value,
+    num_days: parseInt(document.getElementById('s_num_days').value, 10) || 1,
+    last_name: document.getElementById('f_last_name').value.trim().toUpperCase(),
+    first_name: document.getElementById('f_first_name').value.trim().toUpperCase(),
+    gender: document.getElementById('f_gender').value,
+    birth_date: document.getElementById('f_birth_date').value.trim(),
+    is_italian_born: !abroad,
+    document_type: document.getElementById('f_document_type').value,
+    document_number: document.getElementById('f_document_number').value.trim().toUpperCase(),
+    issue_place_code: document.getElementById('f_issue_place_code').value,
+    issue_place_name: document.getElementById('f_issue_place_name').value,
+    citizenship_code: document.getElementById('f_citizenship_code').value,
+    citizenship_name: document.getElementById('f_citizenship_name').value,
+  };
+  if (!abroad) {
+    g.birth_city_code = document.getElementById('f_birth_city_code').value;
+    g.birth_city_name = document.getElementById('f_birth_city_name').value;
+    g.birth_province = document.getElementById('f_birth_province').value;
+    g.birth_country_code = '100000100';
+    g.birth_country_name = 'ITALIA';
+  } else {
+    g.birth_country_code = document.getElementById('f_birth_country_code').value;
+    g.birth_country_name = document.getElementById('f_birth_country_name').value;
+    g.birth_city_code = g.birth_country_code;
+  }
+
+  const missing = [];
+  if (!g.arrival_date) missing.push('Data arrivo (nel riquadro in alto)');
+  if (!g.last_name) missing.push('Cognome');
+  if (!g.first_name) missing.push('Nome');
+  if (!g.birth_date || g.birth_date.length !== 10) missing.push('Data di nascita (gg/mm/aaaa)');
+  if (!abroad && !g.birth_city_code) missing.push('Comune di nascita');
+  if (abroad && !g.birth_country_code) missing.push('Stato di nascita');
+  if (!g.citizenship_code) missing.push('Cittadinanza');
+  if (!g.document_type) missing.push('Tipo documento');
+  if (!g.document_number) missing.push('Numero documento');
+  if (!g.issue_place_code) missing.push('Luogo rilascio documento');
+  if (missing.length) { alert('Campi obbligatori mancanti:\n• ' + missing.join('\n• ')); return; }
+
+  editIndex >= 0 ? guests[editIndex] = g : guests.push(g);
+  renderGuestTable();
+  closeForm();
+}
+
+// ── table rendering ───────────────────────────────────────────────────────────
+function renderGuestTable() {
+  const tbody = document.getElementById('guestTableBody');
+  document.getElementById('guestCount').textContent = guests.length;
+  if (!guests.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">Nessun ospite aggiunto.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = '';
+  guests.forEach((g, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td><span class="badge bg-secondary">${g.guest_type_label||g.guest_type}</span></td>
+      <td><strong>${g.last_name}</strong> ${g.first_name}</td>
+      <td>${g.arrival_date}</td><td>${g.num_days}</td>
+      <td>${g.birth_date}<br><small class="text-muted">${g.is_italian_born ? g.birth_city_name||'' : g.birth_country_name||''}</small></td>
+      <td>${g.document_type} <small class="text-muted">${g.document_number}</small></td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-outline-primary me-1" onclick="openForm(${i})">✏️</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="removeGuest(${i})">🗑️</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function removeGuest(i) {
+  if (confirm(`Rimuovere: ${guests[i].last_name} ${guests[i].first_name}?`)) {
+    guests.splice(i, 1); renderGuestTable();
+  }
+}
+
+// ── send ──────────────────────────────────────────────────────────────────────
+async function submit(test) {
+  if (!selectedApartment) { showResult('Seleziona un appartamento prima di inviare.', 'warning'); return; }
+  if (!guests.length) { showResult('Nessun ospite nella lista.', 'warning'); return; }
+
+  const btnTest = document.getElementById('btnTest');
+  const btnSend = document.getElementById('btnSend');
+  btnTest.disabled = true; btnSend.disabled = true;
+  showResult('Invio in corso...', 'secondary', true);
+
+  try {
+    const endpoint = test ? '/api/guests/test' : '/api/guests/send';
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({apartment_id: selectedApartment.id, guests}),
+    });
+    const data = await res.json();
+    if (data.success) {
+      const label = test ? 'Test completato' : 'Invio completato';
+      const valide = data.schedine_valide ?? '?';
+      const errors = (data.dettaglio || []).filter(d => !d.success);
+      let msg = `${label}: ${valide}/${guests.length} schedine valide.`;
+      if (errors.length) {
+        msg += ' Errori: ' + errors.map(e => e.err_desc || e.err_detail).join('; ');
+        showResult(msg, 'warning');
+      } else {
+        showResult(msg, 'success');
+      }
+    } else {
+      showResult('Errore: ' + [data.error, data.err_desc, data.err_detail].filter(Boolean).join(' — '), 'danger');
+    }
+  } catch (err) {
+    showResult('Errore di rete: ' + err.message, 'danger');
+  } finally {
+    btnTest.disabled = false; btnSend.disabled = false;
+  }
+}
+
+async function downloadRicevuta() {
+  if (!selectedApartment) { showResult('Seleziona un appartamento prima.', 'warning'); return; }
+  const btn = document.getElementById('btnRicevuta');
+  const date = document.getElementById('ricevutaDate').value;
+  btn.disabled = true;
+  showResult('Recupero ricevuta...', 'secondary', true);
+  try {
+    const params = new URLSearchParams({apartment_id: selectedApartment.id});
+    if (date) params.set('date', date);
+    const res = await fetch(`/api/ricevuta?${params}`);
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `ricevuta_${date || todayISO()}.pdf`;
+      a.click(); URL.revokeObjectURL(url);
+      showResult('Ricevuta scaricata.', 'success');
+    } else {
+      const data = await res.json();
+      showResult(`Ricevuta non disponibile: ${data.error}`, 'warning');
+    }
+  } catch (err) {
+    showResult('Errore di rete: ' + err.message, 'danger');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function showResult(msg, type, spinner) {
+  const icon = spinner ? '<span class="spinner-border spinner-border-sm me-2"></span>' : '';
+  document.getElementById('resultBox').innerHTML =
+    `<div class="alert alert-${type} mb-0 py-2">${icon}${msg}</div>`;
+}
+
+// ── ROSS1000 XML generation ───────────────────────────────────────────────────
+
+function _rossDateKey(d) {
+  return d.getFullYear() +
+    String(d.getMonth() + 1).padStart(2, '0') +
+    String(d.getDate()).padStart(2, '0');
+}
+
+function _escXml(s) {
+  return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function _guestToRoss(g) {
+  const arrDate = new Date(g.arrival_date + 'T00:00:00');
+  const depDate = new Date(arrDate);
+  depDate.setDate(depDate.getDate() + (parseInt(g.num_days) || 1));
+
+  const bp = (g.birth_date || '').split('/');
+  const dataNascitaYMD = bp.length === 3 ? (bp[2] + bp[1] + bp[0]) : '00000000';
+
+  const dataArrivoYMD = _rossDateKey(arrDate);
+  const nome = g.first_name || '';
+  const cognome = g.last_name || '';
+  const nL = nome.length || 1;
+  const cL = cognome.length || 1;
+  const idswh = `${parseInt(dataNascitaYMD) * nL}_${parseInt(dataArrivoYMD) * cL}_${(parseInt(g.num_days)||1) * (nL + cL)}`;
+
+  const statoNascita = g.is_italian_born ? '100000100' : (g.birth_country_code || '');
+  const comuneNascita = g.is_italian_born ? (g.birth_city_code || '') : '';
+
+  return {
+    tipoAlloggiato: String(g.guest_type),
+    arrDate, depDate,
+    cognome, nome,
+    sesso: g.gender === 'F' ? 'F' : (g.gender === 'M' ? 'M' : 'X'),
+    dataNascita: dataNascitaYMD,
+    comuneNascita, statoNascita,
+    cittadinanza: g.citizenship_code || '',
+    idswh, idcapo: '',
+    occupaCamera: ['16', '17', '18'].includes(String(g.guest_type)),
+  };
+}
+
+function _rossOccupancy(rossGuests, startDate, endDate) {
+  const occ = {};
+  const cur = new Date(startDate);
+  while (cur <= endDate) { occ[_rossDateKey(cur)] = 0; cur.setDate(cur.getDate() + 1); }
+
+  rossGuests.forEach(g => {
+    if (!g.occupaCamera) return;
+    const s = g.arrDate > startDate ? new Date(g.arrDate) : new Date(startDate);
+    const lastNight = new Date(g.depDate); lastNight.setDate(lastNight.getDate() - 1);
+    const e = lastNight < endDate ? lastNight : new Date(endDate);
+    if (s > e) return;
+    const d = new Date(s);
+    while (d <= e) { const k = _rossDateKey(d); if (k in occ) occ[k]++; d.setDate(d.getDate() + 1); }
+  });
+  return occ;
+}
+
+function generateRossXml() {
+  if (!selectedApartment) return;
+  if (!selectedApartment.ross_codice) {
+    alert('Configura il Codice Struttura ROSS1000 nell\'appartamento prima di esportare.');
+    return;
+  }
+  if (!guests.length) { alert('Nessun ospite nella lista.'); return; }
+
+  const startStr = document.getElementById('ross_start').value;
+  const endStr   = document.getElementById('ross_end').value;
+  const canale   = document.getElementById('ross_canale').value;
+  if (!startStr || !endStr) { alert('Specifica il periodo.'); return; }
+
+  const startDate = new Date(startStr + 'T00:00:00');
+  const endDate   = new Date(endStr   + 'T00:00:00');
+  if (startDate > endDate) { alert('La data di inizio deve precedere la data di fine.'); return; }
+
+  const all = guests.map(_guestToRoss);
+  const filtered = all.filter(g => g.arrDate <= endDate && g.depDate > startDate);
+  if (!filtered.length) { alert('Nessun ospite nel periodo selezionato.'); return; }
+
+  let lastLeaderIdswh = '';
+  filtered.forEach(g => {
+    const t = g.tipoAlloggiato;
+    if (t === '17' || t === '18') { g.idcapo = g.idswh; lastLeaderIdswh = g.idswh; }
+    else if (t === '19' || t === '20') { g.idcapo = lastLeaderIdswh; }
+    else { g.idcapo = ''; lastLeaderIdswh = ''; }
+  });
+
+  const occ = _rossOccupancy(filtered, startDate, endDate);
+  const arrivals = {}, departures = {};
+  filtered.forEach(g => {
+    const ak = _rossDateKey(g.arrDate);
+    (arrivals[ak] = arrivals[ak] || []).push(g);
+    const dk = _rossDateKey(g.depDate);
+    (departures[dk] = departures[dk] || []).push(g);
+  });
+
+  const apt = selectedApartment;
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<movimenti>\n';
+  xml += `  <codice>${_escXml(apt.ross_codice)}</codice>\n`;
+  xml += `  <prodotto>OpenRoss</prodotto>\n`;
+
+  const d = new Date(startDate);
+  while (d <= endDate) {
+    const key = _rossDateKey(d);
+    xml += `  <movimento>\n    <data>${key}</data>\n`;
+    xml += `    <struttura>\n      <apertura>SI</apertura>\n`;
+    xml += `      <camereoccupate>${occ[key] || 0}</camereoccupate>\n`;
+    xml += `      <cameredisponibili>${apt.ross_camere || 0}</cameredisponibili>\n`;
+    xml += `      <lettidisponibili>${apt.ross_letti || 0}</lettidisponibili>\n`;
+    xml += `    </struttura>\n`;
+
+    if (arrivals[key]) {
+      xml += `    <arrivi>\n`;
+      arrivals[key].forEach(g => {
+        xml += `      <arrivo>\n`;
+        xml += `        <idswh>${g.idswh}</idswh>\n`;
+        xml += `        <tipoalloggiato>${g.tipoAlloggiato}</tipoalloggiato>\n`;
+        xml += `        <idcapo>${g.idcapo}</idcapo>\n`;
+        xml += `        <cognome>${_escXml(g.cognome)}</cognome>\n`;
+        xml += `        <nome>${_escXml(g.nome)}</nome>\n`;
+        xml += `        <sesso>${g.sesso}</sesso>\n`;
+        xml += `        <cittadinanza>${g.cittadinanza}</cittadinanza>\n`;
+        xml += `        <statoresidenza>${g.statoNascita}</statoresidenza>\n`;
+        xml += `        <luogoresidenza>${g.comuneNascita}</luogoresidenza>\n`;
+        xml += `        <datanascita>${g.dataNascita}</datanascita>\n`;
+        xml += `        <statonascita>${g.statoNascita}</statonascita>\n`;
+        xml += `        <comunenascita>${g.comuneNascita}</comunenascita>\n`;
+        xml += `        <tipoturismo>Non specificato</tipoturismo>\n`;
+        xml += `        <mezzotrasporto>Non specificato</mezzotrasporto>\n`;
+        xml += `        <canaleprenotazione>${_escXml(canale)}</canaleprenotazione>\n`;
+        xml += `        <titolostudio></titolostudio>\n`;
+        xml += `        <professione></professione>\n`;
+        xml += `        <esenzioneimposta></esenzioneimposta>\n`;
+        xml += `      </arrivo>\n`;
+      });
+      xml += `    </arrivi>\n`;
+    }
+
+    if (departures[key]) {
+      xml += `    <partenze>\n`;
+      departures[key].forEach(g => {
+        xml += `      <partenza>\n`;
+        xml += `        <idswh>${g.idswh}</idswh>\n`;
+        xml += `        <tipoalloggiato>${g.tipoAlloggiato}</tipoalloggiato>\n`;
+        xml += `        <arrivo>${_rossDateKey(g.arrDate)}</arrivo>\n`;
+        xml += `      </partenza>\n`;
+      });
+      xml += `    </partenze>\n`;
+    }
+
+    xml += `  </movimento>\n`;
+    d.setDate(d.getDate() + 1);
+  }
+  xml += '</movimenti>';
+
+  const blob = new Blob([xml], {type: 'application/xml'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${apt.ross_codice}_${startStr}_${endStr}.xml`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
