@@ -10,6 +10,8 @@ from sqlalchemy.orm import sessionmaker
 
 from registration.models.apartment import Apartment, Base as ApartmentBase
 from registration.models.guest import Guest, GuestGender, GuestType
+from registration.models.registered_guest import RegisteredGuest
+from registration.models.reservation import Reservation
 from registration.services.alloggiatiweb_api import AlloggiatiWebApi
 from registration.services.mrz_reader import MrzReader
 from registration.services.registration_service import RegistrationService
@@ -28,6 +30,10 @@ _DB_PATH = os.path.join(_DATA_DIR, 'myguesthouse.db')
 _engine = create_engine(f'sqlite:///{_DB_PATH}')
 ApartmentBase.metadata.create_all(_engine)
 _Session = sessionmaker(bind=_engine)
+
+# Ensure registered_guests and reservations tables exist (idempotent)
+RegisteredGuest.__table__.create(_engine, checkfirst=True)
+Reservation.__table__.create(_engine, checkfirst=True)
 
 # Idempotent migration: add ROSS1000 columns if they don't exist yet
 with _engine.connect() as _conn:
@@ -335,9 +341,14 @@ def _submit(test: bool):
     try:
         api = _get_api(apartment_id)
         service = RegistrationService(api)
-        guests = [_dict_to_guest(g) for g in data['guests']]
+        guest_dicts = data['guests']
+        guests = [_dict_to_guest(g) for g in guest_dicts]
         result = service.test_guests(guests) if test else service.send_guests(guests)
         schedine = result.data or {}
+
+        if not test and result.success:
+            _persist_guests(apartment_id, guest_dicts)
+
         return jsonify({
             'success': result.success,
             'err_code': result.err_code,
@@ -351,6 +362,43 @@ def _submit(test: bool):
     except Exception as e:
         logging.exception("Errore durante l'invio")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def _persist_guests(apartment_id: str, guest_dicts: list):
+    with _Session() as session:
+        apt = session.get(Apartment, apartment_id)
+        apt_name = apt.name if apt else None
+        now = datetime.utcnow()
+        for g in guest_dicts:
+            guest_type = str(g.get('guest_type', '16'))
+            rg = RegisteredGuest(
+                id=__import__('uuid').uuid4().__str__(),
+                apartment_id=apartment_id,
+                apartment_name=apt_name,
+                registered_at=now,
+                arrival_date=g.get('arrival_date', ''),
+                num_days=int(g.get('num_days', 1)),
+                guest_type=guest_type,
+                guest_type_label=_GUEST_TYPE_LABELS.get(guest_type, ''),
+                last_name=g.get('last_name', '').upper(),
+                first_name=g.get('first_name', '').upper(),
+                gender=g.get('gender', 'X'),
+                birth_date=g.get('birth_date', ''),
+                is_italian_born=bool(g.get('is_italian_born', False)),
+                birth_city_code=g.get('birth_city_code', ''),
+                birth_city_name=g.get('birth_city_name', ''),
+                birth_province=g.get('birth_province', ''),
+                birth_country_code=g.get('birth_country_code', ''),
+                birth_country_name=g.get('birth_country_name', ''),
+                citizenship_code=g.get('citizenship_code', ''),
+                citizenship_name=g.get('citizenship_name', ''),
+                document_type=g.get('document_type', ''),
+                document_number=g.get('document_number', ''),
+                issue_place_code=g.get('issue_place_code', ''),
+                issue_place_name=g.get('issue_place_name', ''),
+            )
+            session.add(rg)
+        session.commit()
 
 
 def _dict_to_guest(g: dict) -> Guest:
@@ -382,6 +430,117 @@ def _dict_to_guest(g: dict) -> Guest:
         document_number=g.get('document_number', ''),
         document_issue_place=g.get('issue_place_code', ''),
     )
+
+
+@app.route('/api/reservations', methods=['GET'])
+def list_reservations():
+    year = request.args.get('year', type=int)
+    month = request.args.get('month', type=int)
+    apartment_id = request.args.get('apartment_id', '').strip()
+    with _Session() as session:
+        q = session.query(Reservation)
+        if year and month:
+            import calendar as _cal
+            last_day = _cal.monthrange(year, month)[1]
+            month_start = f'{year:04d}-{month:02d}-01'
+            month_end = f'{year:04d}-{month:02d}-{last_day:02d}'
+            # reservations that overlap the month
+            q = q.filter(
+                Reservation.checkin_date <= month_end,
+                Reservation.checkout_date > month_start,
+            )
+        if apartment_id:
+            q = q.filter(Reservation.apartment_id == apartment_id)
+        q = q.order_by(Reservation.checkin_date)
+        return jsonify([r.to_dict() for r in q.all()])
+
+
+@app.route('/api/reservations', methods=['POST'])
+def create_reservation():
+    data = request.json
+    for f in ('apartment_id', 'checkin_date', 'checkout_date'):
+        if not data.get(f):
+            return jsonify({'error': f'Campo obbligatorio: {f}'}), 400
+    if data['checkin_date'] >= data['checkout_date']:
+        return jsonify({'error': 'La data di check-out deve essere dopo il check-in'}), 400
+    with _Session() as session:
+        r = Reservation(
+            id=__import__('uuid').uuid4().__str__(),
+            apartment_id=data['apartment_id'],
+            checkin_date=data['checkin_date'],
+            checkout_date=data['checkout_date'],
+            guest_name=data.get('guest_name') or None,
+            num_guests=data.get('num_guests') or None,
+            source=data.get('source') or None,
+            notes=data.get('notes') or None,
+            price=data.get('price') or None,
+        )
+        session.add(r)
+        session.commit()
+        return jsonify(r.to_dict()), 201
+
+
+@app.route('/api/reservations/<res_id>', methods=['PUT'])
+def update_reservation(res_id):
+    data = request.json
+    with _Session() as session:
+        r = session.get(Reservation, res_id)
+        if r is None:
+            return jsonify({'error': 'Non trovato'}), 404
+        for f in ('checkin_date', 'checkout_date', 'apartment_id'):
+            if data.get(f):
+                setattr(r, f, data[f])
+        if r.checkin_date >= r.checkout_date:
+            return jsonify({'error': 'La data di check-out deve essere dopo il check-in'}), 400
+        for f in ('guest_name', 'num_guests', 'source', 'notes', 'price'):
+            if f in data:
+                setattr(r, f, data[f] or None)
+        session.commit()
+        return jsonify(r.to_dict())
+
+
+@app.route('/api/reservations/<res_id>', methods=['DELETE'])
+def delete_reservation(res_id):
+    with _Session() as session:
+        r = session.get(Reservation, res_id)
+        if r is None:
+            return jsonify({'error': 'Non trovato'}), 404
+        session.delete(r)
+        session.commit()
+        return jsonify({'ok': True})
+
+
+@app.route('/api/holidays/<int:year>')
+def get_holidays(year):
+    import holidays as _holidays
+    it = _holidays.Italy(years=year)
+    return jsonify({str(d): name for d, name in it.items()})
+
+
+@app.route('/api/guests/history')
+def guests_history():
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+    name = request.args.get('name', '').strip().upper()
+    apartment_id = request.args.get('apartment_id', '').strip()
+
+    with _Session() as session:
+        q = session.query(RegisteredGuest)
+        if date_from:
+            q = q.filter(RegisteredGuest.arrival_date >= date_from)
+        if date_to:
+            q = q.filter(RegisteredGuest.arrival_date <= date_to)
+        if name:
+            pattern = f'%{name}%'
+            from sqlalchemy import or_
+            q = q.filter(or_(
+                RegisteredGuest.last_name.like(pattern),
+                RegisteredGuest.first_name.like(pattern),
+            ))
+        if apartment_id:
+            q = q.filter(RegisteredGuest.apartment_id == apartment_id)
+        q = q.order_by(RegisteredGuest.arrival_date.desc(), RegisteredGuest.registered_at.desc())
+        return jsonify([r.to_dict() for r in q.all()])
 
 
 if __name__ == '__main__':

@@ -40,16 +40,51 @@
       opacity: .45; pointer-events: none; user-select: none;
     }
     #resultBox { min-height: 3rem; }
+
+    /* Prenotazioni calendar */
+    #calTable { font-size: .82rem; table-layout: fixed; min-width: 600px; }
+    #calTable th { text-align: center; vertical-align: middle; white-space: nowrap;
+                   background: #f8f9fa; position: sticky; top: 0; z-index: 2; }
+    #calTable td { vertical-align: middle; padding: .2rem .35rem; height: 2.1rem;
+                   cursor: pointer; border: 1px solid #dee2e6; }
+    #calTable td.day-num { width: 3.2rem; text-align: center; cursor: default;
+                           font-weight: 500; background: #f8f9fa; }
+    #calTable td.day-num.day-holiday { color: #dc3545; background: #fff0f0; font-weight: 700; }
+    #calTable td.day-num.today { background: #0d6efd !important; color: #fff !important; }
+    #calTable td.res-cell { cursor: pointer; }
+    #calTable td.res-cell:hover { filter: brightness(.93); }
+    #calTable td.free-cell:hover { background: #e8f0fe !important; }
+    #calTable .res-label { font-size: .75rem; line-height: 1.2;
+                           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .res-checkin-marker { font-size: .65rem; margin-right: .2rem; }
   </style>
 </head>
 <body>
 
-<nav class="navbar navbar-dark bg-primary mb-4">
+<nav class="navbar navbar-dark bg-primary mb-0">
   <div class="container">
-    <span class="navbar-brand">MyGuestHouse — Registrazione Ospiti</span>
+    <span class="navbar-brand">MyGuestHouse</span>
     <span id="aptBadge" class="badge bg-secondary">Nessun appartamento selezionato</span>
   </div>
 </nav>
+
+<div class="container">
+  <ul class="nav nav-tabs mb-4 mt-0 border-bottom-0" id="mainTabs">
+    <li class="nav-item">
+      <a class="nav-link active" href="#" id="tabRegistrazioneLink" onclick="showTab('registrazione');return false;">Registrazione</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="#" id="tabStoricoLink" onclick="showTab('storico');return false;">Storico Ospiti</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="#" id="tabPrenotazioniLink" onclick="showTab('prenotazioni');return false;">Prenotazioni</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="#" id="tabAppartamentiLink" onclick="showTab('appartamenti');return false;">Appartamenti</a>
+    </li>
+  </ul>
+</div>
 
 <div class="container pb-5">
 
@@ -61,9 +96,8 @@
               onchange="onApartmentChange()">
         <option value="">— Seleziona —</option>
       </select>
-      <button class="btn btn-outline-secondary btn-sm" onclick="openApartmentModal()">
-        Gestisci appartamenti
-      </button>
+      <a href="#" class="btn btn-outline-secondary btn-sm"
+         onclick="showTab('appartamenti');return false;">Gestisci appartamenti</a>
       <span id="aptConnStatus" class="small text-muted"></span>
     </div>
   </div>
@@ -92,9 +126,15 @@
     <div class="card mb-3">
       <div class="card-header d-flex justify-content-between align-items-center">
         <span>Ospiti da inviare <span id="guestCount" class="badge bg-primary ms-1">0</span></span>
-        <button class="btn btn-sm btn-primary" id="btnAddGuest" onclick="openForm()">
-          + Aggiungi ospite
-        </button>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-danger" onclick="newRegistration()"
+                  title="Svuota la lista e inizia una nuova registrazione">
+            Nuova registrazione
+          </button>
+          <button class="btn btn-sm btn-primary" id="btnAddGuest" onclick="openForm()">
+            + Aggiungi ospite
+          </button>
+        </div>
       </div>
       <div class="card-body p-0">
         <div class="table-responsive">
@@ -326,33 +366,117 @@
 
   </div><!-- /mainContent -->
 
-</div><!-- /container -->
+  <!-- ── Storico Ospiti ────────────────────────────────────────────────────── -->
+  <div id="storicoContent" style="display:none">
 
-
-<!-- ── Apartment management modal ──────────────────────────────────────────── -->
-<div class="modal fade" id="apartmentModal" tabindex="-1">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Gestione Appartamenti</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <div class="card mb-3">
+      <div class="card-header">Filtri</div>
+      <div class="card-body">
+        <div class="row g-3 align-items-end">
+          <div class="col-auto">
+            <label class="form-label mb-1 fw-semibold">Data arrivo da</label>
+            <input type="date" class="form-control form-control-sm" id="h_date_from" style="width:160px">
+          </div>
+          <div class="col-auto">
+            <label class="form-label mb-1 fw-semibold">Data arrivo a</label>
+            <input type="date" class="form-control form-control-sm" id="h_date_to" style="width:160px">
+          </div>
+          <div class="col-auto">
+            <label class="form-label mb-1 fw-semibold">Nome / Cognome</label>
+            <input type="text" class="form-control form-control-sm" id="h_name"
+                   placeholder="Cerca..." style="width:200px"
+                   oninput="scheduleHistorySearch()">
+          </div>
+          <div class="col-auto">
+            <label class="form-label mb-1 fw-semibold">Appartamento</label>
+            <select class="form-select form-select-sm" id="h_apartment" style="width:220px"
+                    onchange="loadHistory()">
+              <option value="">Tutti</option>
+            </select>
+          </div>
+          <div class="col-auto pt-1">
+            <button class="btn btn-sm btn-primary" onclick="loadHistory()">Cerca</button>
+          </div>
+        </div>
       </div>
-      <div class="modal-body">
+    </div>
 
-        <!-- Apartment list -->
-        <table class="table table-sm" id="aptListTable">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Ospiti registrati</span>
+        <span id="historyCount" class="badge bg-secondary">0</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Arrivo</th>
+                <th>Notti</th>
+                <th>Cognome</th>
+                <th>Nome</th>
+                <th>Sesso</th>
+                <th>Nascita</th>
+                <th>Cittadinanza</th>
+                <th>Documento</th>
+                <th>Appartamento</th>
+                <th>Registrato il</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody">
+              <tr><td colspan="10" class="text-center text-muted py-3">Nessun risultato.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /storicoContent -->
+
+  <!-- ── Prenotazioni ────────────────────────────────────────────────────────── -->
+  <div id="prenotazioniContent" style="display:none">
+
+    <!-- Month navigator -->
+    <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+      <button class="btn btn-outline-secondary btn-sm" onclick="calPrevMonth()">&#8592;</button>
+      <h5 class="mb-0" id="calTitle" style="min-width:180px;text-align:center"></h5>
+      <button class="btn btn-outline-secondary btn-sm" onclick="calNextMonth()">&#8594;</button>
+      <button class="btn btn-sm btn-outline-primary ms-2" onclick="calGoToday()">Oggi</button>
+    </div>
+
+    <div class="card">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-bordered mb-0" id="calTable">
+            <thead id="calHead"></thead>
+            <tbody id="calBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /prenotazioniContent -->
+
+  <!-- ── Appartamenti ────────────────────────────────────────────────────────── -->
+  <div id="appartamentiContent" style="display:none">
+
+    <div class="card mb-3">
+      <div class="card-header">Appartamenti registrati</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0" id="aptListTable">
           <thead class="table-light">
             <tr><th>Nome</th><th>Utente AlloggiatiWeb</th><th></th></tr>
           </thead>
           <tbody id="aptListBody">
-            <tr><td colspan="3" class="text-muted text-center">Nessun appartamento registrato.</td></tr>
+            <tr><td colspan="3" class="text-muted text-center py-3">Nessun appartamento registrato.</td></tr>
           </tbody>
         </table>
+      </div>
+    </div>
 
-        <hr>
-
-        <!-- Add / Edit form -->
-        <h6 id="aptFormTitle">Nuovo appartamento</h6>
+    <div class="card">
+      <div class="card-header" id="aptFormTitle">Nuovo appartamento</div>
+      <div class="card-body">
         <input type="hidden" id="apt_edit_id">
         <div class="row g-3 mb-3">
           <div class="col-sm-6">
@@ -393,6 +517,7 @@
             <input type="text" class="form-control" id="apt_aw_ws_key" placeholder="Base64...">
           </div>
         </div>
+
         <hr class="my-3">
         <h6 class="text-muted fw-normal">ROSS1000 <small>(opzionale)</small></h6>
         <div class="row g-3 mb-3">
@@ -419,11 +544,83 @@
           </button>
           <span id="aptTestResult" class="small ms-2"></span>
         </div>
+      </div>
+    </div>
 
+  </div><!-- /appartamentiContent -->
+
+</div><!-- /container -->
+
+
+<!-- ── Reservation modal ─────────────────────────────────────────────────────── -->
+<div class="modal fade" id="resModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="resModalTitle">Nuova prenotazione</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="res_id">
+        <div class="row g-3 mb-2">
+          <div class="col-sm-6">
+            <label class="form-label">Check-in <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="res_checkin">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Check-out <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="res_checkout">
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Appartamento <span class="text-danger">*</span></label>
+          <select class="form-select" id="res_apartment"></select>
+        </div>
+        <div class="row g-3 mb-2">
+          <div class="col-sm-7">
+            <label class="form-label">Nome ospite</label>
+            <input type="text" class="form-control" id="res_guest_name" placeholder="Es. Mario Rossi">
+          </div>
+          <div class="col-sm-5">
+            <label class="form-label">N. ospiti</label>
+            <input type="text" class="form-control" id="res_num_guests" placeholder="Es. 2 adulti, 2+1">
+          </div>
+        </div>
+        <div class="row g-3 mb-2">
+          <div class="col-sm-6">
+            <label class="form-label">Canale</label>
+            <select class="form-select" id="res_source">
+              <option value="">— Seleziona —</option>
+              <option value="Booking">Booking</option>
+              <option value="Airbnb">Airbnb</option>
+              <option value="Diretto">Diretto</option>
+              <option value="Altro">Altro</option>
+            </select>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Prezzo</label>
+            <input type="text" class="form-control" id="res_price" placeholder="Es. 120€/notte">
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Note</label>
+          <textarea class="form-control" id="res_notes" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <button class="btn btn-outline-danger btn-sm" id="resDeleteBtn" onclick="deleteReservation()" style="display:none">
+          Elimina
+        </button>
+        <div class="d-flex gap-2">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+          <button class="btn btn-primary" onclick="saveReservation()">Salva</button>
+        </div>
       </div>
     </div>
   </div>
 </div>
+
+<!-- ── Apartment management page ──────────────────────────────────────────── -->
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
@@ -431,12 +628,350 @@
 let guests = [];
 let editIndex = -1;
 let selectedApartment = null;  // full apartment dict from API
-let _aptModal = null;
 let _apartmentsCache = {};  // id → apartment dict
+
+// ── tab navigation ────────────────────────────────────────────────────────────
+const _TABS = {
+  registrazione: { content: 'mainContent',        link: 'tabRegistrazioneLink'  },
+  storico:       { content: 'storicoContent',      link: 'tabStoricoLink'        },
+  prenotazioni:  { content: 'prenotazioniContent', link: 'tabPrenotazioniLink'   },
+  appartamenti:  { content: 'appartamentiContent', link: 'tabAppartamentiLink'   },
+};
+
+function showTab(tab) {
+  Object.entries(_TABS).forEach(([key, cfg]) => {
+    document.getElementById(cfg.content).style.display = key === tab ? '' : 'none';
+    document.getElementById(cfg.link).classList.toggle('active', key === tab);
+  });
+  if (tab === 'storico')      { populateHistoryAptFilter(); loadHistory(); }
+  if (tab === 'prenotazioni') { loadCalendar(); }
+  if (tab === 'appartamenti') { loadApartments(); }
+}
+
+function populateHistoryAptFilter() {
+  const sel = document.getElementById('h_apartment');
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">Tutti</option>';
+  Object.values(_apartmentsCache).sort((a, b) => a.name.localeCompare(b.name)).forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a.id; opt.textContent = a.name;
+    sel.appendChild(opt);
+  });
+  sel.value = currentVal;
+}
+
+let _historyTimer = null;
+function scheduleHistorySearch() {
+  clearTimeout(_historyTimer);
+  _historyTimer = setTimeout(loadHistory, 300);
+}
+
+async function loadHistory() {
+  const params = new URLSearchParams();
+  const df = document.getElementById('h_date_from').value;
+  const dt = document.getElementById('h_date_to').value;
+  const name = document.getElementById('h_name').value.trim();
+  const apt = document.getElementById('h_apartment').value;
+  if (df) params.set('date_from', df);
+  if (dt) params.set('date_to', dt);
+  if (name) params.set('name', name);
+  if (apt) params.set('apartment_id', apt);
+
+  const tbody = document.getElementById('historyTableBody');
+  tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-3">Caricamento...</td></tr>';
+  const records = await fetch('/api/guests/history?' + params).then(r => r.json());
+  document.getElementById('historyCount').textContent = records.length;
+
+  if (!records.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-3">Nessun risultato.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = records.map(r => {
+    const birth = r.is_italian_born
+      ? `${r.birth_city_name || ''} (${r.birth_province || ''}) — ITALIA`
+      : (r.birth_country_name || '');
+    const docNum = r.document_number ? `${r.document_type} ${r.document_number}` : '';
+    const regAt = r.registered_at ? r.registered_at.replace('T', ' ') : '';
+    return `<tr>
+      <td>${r.arrival_date || ''}</td>
+      <td>${r.num_days ?? ''}</td>
+      <td>${_esc(r.last_name)}</td>
+      <td>${_esc(r.first_name)}</td>
+      <td>${r.gender || ''}</td>
+      <td class="small">${_esc(birth)}</td>
+      <td class="small">${_esc(r.citizenship_name)}</td>
+      <td class="small">${_esc(docNum)}</td>
+      <td class="small">${_esc(r.apartment_name)}</td>
+      <td class="small text-muted">${regAt}</td>
+    </tr>`;
+  }).join('');
+}
+
+function _esc(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── prenotazioni calendar ─────────────────────────────────────────────────────
+const _MONTHS_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
+                    'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+const _DAYS_IT   = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+const _CAL_PALETTE = [
+  {bg:'#dbeafe', color:'#1e40af'},
+  {bg:'#d1fae5', color:'#065f46'},
+  {bg:'#fce7f3', color:'#9d174d'},
+  {bg:'#fef3c7', color:'#92400e'},
+  {bg:'#ede9fe', color:'#4c1d95'},
+  {bg:'#ffedd5', color:'#7c2d12'},
+];
+
+let _calYear  = new Date().getFullYear();
+let _calMonth = new Date().getMonth() + 1;  // 1-12
+let _calReservations = [];   // raw list from API for current month
+let _calHolidays = {};        // year → Set of 'YYYY-MM-DD' strings
+let _resModal = null;
+
+function calPrevMonth() {
+  _calMonth--; if (_calMonth < 1) { _calMonth = 12; _calYear--; }
+  loadCalendar();
+}
+function calNextMonth() {
+  _calMonth++; if (_calMonth > 12) { _calMonth = 1; _calYear++; }
+  loadCalendar();
+}
+function calGoToday() {
+  const n = new Date();
+  _calYear = n.getFullYear(); _calMonth = n.getMonth() + 1;
+  loadCalendar();
+}
+
+async function loadCalendar() {
+  document.getElementById('calTitle').textContent =
+    `${_MONTHS_IT[_calMonth-1]} ${_calYear}`;
+
+  const apts = Object.values(_apartmentsCache).sort((a,b) => a.name.localeCompare(b.name));
+
+  // Fetch reservations and holidays in parallel; cache holidays per year
+  const [reservations] = await Promise.all([
+    fetch('/api/reservations?' + new URLSearchParams({year: _calYear, month: _calMonth})).then(r => r.json()),
+    _ensureHolidays(_calYear),
+  ]);
+  _calReservations = reservations;
+
+  _renderCalHead(apts);
+  _renderCalBody(apts);
+}
+
+async function _ensureHolidays(year) {
+  if (!_calHolidays[year]) {
+    const data = await fetch(`/api/holidays/${year}`).then(r => r.json());
+    _calHolidays[year] = new Set(Object.keys(data));
+  }
+}
+
+function _renderCalHead(apts) {
+  const head = document.getElementById('calHead');
+  let html = '<tr><th style="width:3.2rem">Giorno</th>';
+  apts.forEach(a => { html += `<th>${_esc(a.name)}</th>`; });
+  html += '</tr>';
+  head.innerHTML = html;
+}
+
+function _renderCalBody(apts) {
+  const today = new Date().toISOString().slice(0,10);
+  const daysInMonth = new Date(_calYear, _calMonth, 0).getDate();
+  const resMap = {};
+  apts.forEach(a => { resMap[a.id] = []; });
+  _calReservations.forEach(r => { if (resMap[r.apartment_id]) resMap[r.apartment_id].push(r); });
+
+  // Assign palette colors by checkin order within each apartment
+  const colorMap = {};
+  apts.forEach(a => {
+    const sorted = [...(resMap[a.id] || [])].sort((x, y) => x.checkin_date.localeCompare(y.checkin_date));
+    sorted.forEach((r, i) => { colorMap[r.id] = _CAL_PALETTE[i % _CAL_PALETTE.length]; });
+  });
+
+  const holidays = _calHolidays[_calYear] || new Set();
+  let html = '';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr  = `${_calYear}-${String(_calMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dow      = new Date(dateStr).getDay();
+    const isRed    = dow === 0 || holidays.has(dateStr);
+    const isToday  = dateStr === today;
+    const dayLabel = `${String(d).padStart(2,'0')} ${_DAYS_IT[dow]}`;
+
+    html += `<tr>`;
+    html += `<td class="day-num${isRed?' day-holiday':''}${isToday?' today':''}">${dayLabel}</td>`;
+    apts.forEach(a => { html += _calCell(a.id, dateStr, resMap[a.id] || [], isRed, colorMap); });
+    html += '</tr>';
+  }
+  document.getElementById('calBody').innerHTML = html;
+}
+
+function _calCell(aptId, dateStr, list, isRed, colorMap) {
+  const arriving  = list.find(r => r.checkin_date  === dateStr);
+  const departing = list.find(r => r.checkout_date === dateStr);
+  const staying   = list.find(r => r.checkin_date  <  dateStr && r.checkout_date > dateStr);
+
+  if (!arriving && !departing && !staying) {
+    const bg = isRed ? 'background:#fff0f0' : '';
+    return `<td class="free-cell" style="${bg}" onclick="openNewResModal('${aptId}','${dateStr}')"></td>`;
+  }
+
+  // Split cell: same-day checkout + checkin
+  if (arriving && departing) {
+    const as = colorMap[arriving.id], ds = colorMap[departing.id];
+    const lbl = _arrLabel(arriving, as.color);
+    return `<td class="cal-cell" style="padding:0">` +
+      `<div style="display:flex;height:100%;min-height:2rem">` +
+        `<div style="flex:1;background:${ds.bg};cursor:pointer" ` +
+             `onclick="openResModal('${departing.id}')" title="${_resTooltip(departing)}"></div>` +
+        `<div style="flex:1;background:${as.bg};cursor:pointer;display:flex;align-items:center;overflow:hidden" ` +
+             `onclick="openResModal('${arriving.id}')" title="${_resTooltip(arriving)}">` +
+          `<div class="res-label" style="color:${as.color};padding:0 .2rem">${lbl}</div>` +
+        `</div>` +
+      `</div></td>`;
+  }
+
+  if (arriving) {
+    const as = colorMap[arriving.id];
+    const lbl = _arrLabel(arriving, as.color);
+    return `<td class="res-cell" onclick="openResModal('${arriving.id}')" title="${_resTooltip(arriving)}"` +
+      ` style="background:linear-gradient(to right,transparent 50%,${as.bg} 50%)">` +
+      `<div class="res-label" style="color:${as.color};margin-left:50%">${lbl}</div></td>`;
+  }
+
+  if (departing) {
+    const ds = colorMap[departing.id];
+    return `<td class="cal-cell" style="padding:0">` +
+      `<div style="display:flex;height:100%;min-height:2rem">` +
+        `<div style="flex:1;background:${ds.bg};cursor:pointer" ` +
+             `onclick="openResModal('${departing.id}')" title="${_resTooltip(departing)}"></div>` +
+        `<div style="flex:1;cursor:pointer${isRed?';background:#fff0f0':''}" ` +
+             `onclick="openNewResModal('${aptId}','${dateStr}')"></div>` +
+      `</div></td>`;
+  }
+
+  // staying: full cell, no label
+  const ss = colorMap[staying.id];
+  return `<td class="res-cell" onclick="openResModal('${staying.id}')" title="${_resTooltip(staying)}"` +
+    ` style="background:${ss.bg}"></td>`;
+}
+
+function _arrLabel(r, color) {
+  const src  = r.source    ? `<span class="res-checkin-marker">▶</span>${_esc(r.source)} ` : '';
+  const name = r.guest_name ? _esc(r.guest_name) : '';
+  const ng   = r.num_guests ? ` · ${_esc(r.num_guests)}` : '';
+  return `${src}${name}${ng}`;
+}
+
+function _resTooltip(r) {
+  const parts = [];
+  if (r.guest_name) parts.push(r.guest_name);
+  if (r.num_guests) parts.push(r.num_guests);
+  if (r.source)     parts.push(r.source);
+  if (r.checkin_date && r.checkout_date)
+    parts.push(`${r.checkin_date} → ${r.checkout_date}`);
+  if (r.price) parts.push(r.price);
+  if (r.notes) parts.push(r.notes);
+  return parts.join(' | ').replace(/"/g, '&quot;');
+}
+
+function _fillResAptSelect(selectedId) {
+  const sel = document.getElementById('res_apartment');
+  sel.innerHTML = '';
+  Object.values(_apartmentsCache).sort((a,b) => a.name.localeCompare(b.name)).forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a.id; opt.textContent = a.name;
+    sel.appendChild(opt);
+  });
+  if (selectedId) sel.value = selectedId;
+}
+
+function openNewResModal(aptId, dateStr) {
+  document.getElementById('resModalTitle').textContent = 'Nuova prenotazione';
+  document.getElementById('res_id').value = '';
+  document.getElementById('res_checkin').value = dateStr;
+  // default checkout = checkin + 1
+  const d = new Date(dateStr); d.setDate(d.getDate() + 1);
+  document.getElementById('res_checkout').value = d.toISOString().slice(0,10);
+  document.getElementById('res_guest_name').value = '';
+  document.getElementById('res_num_guests').value = '';
+  document.getElementById('res_source').value = '';
+  document.getElementById('res_price').value = '';
+  document.getElementById('res_notes').value = '';
+  document.getElementById('resDeleteBtn').style.display = 'none';
+  _fillResAptSelect(aptId);
+  _resModal.show();
+}
+
+function openResModal(id) {
+  const r = _calReservations.find(r => r.id === id);
+  if (!r) return;
+  document.getElementById('resModalTitle').textContent = 'Modifica prenotazione';
+  document.getElementById('res_id').value = r.id;
+  document.getElementById('res_checkin').value = r.checkin_date;
+  document.getElementById('res_checkout').value = r.checkout_date;
+  document.getElementById('res_guest_name').value = r.guest_name || '';
+  document.getElementById('res_num_guests').value = r.num_guests || '';
+  document.getElementById('res_source').value = r.source || '';
+  document.getElementById('res_price').value = r.price || '';
+  document.getElementById('res_notes').value = r.notes || '';
+  document.getElementById('resDeleteBtn').style.display = '';
+  _fillResAptSelect(r.apartment_id);
+  _resModal.show();
+}
+
+async function saveReservation() {
+  const id       = document.getElementById('res_id').value;
+  const payload  = {
+    apartment_id:  document.getElementById('res_apartment').value,
+    checkin_date:  document.getElementById('res_checkin').value,
+    checkout_date: document.getElementById('res_checkout').value,
+    guest_name:    document.getElementById('res_guest_name').value.trim() || null,
+    num_guests:    document.getElementById('res_num_guests').value.trim() || null,
+    source:        document.getElementById('res_source').value || null,
+    price:         document.getElementById('res_price').value.trim() || null,
+    notes:         document.getElementById('res_notes').value.trim() || null,
+  };
+  if (!payload.apartment_id || !payload.checkin_date || !payload.checkout_date) {
+    alert('Appartamento, check-in e check-out sono obbligatori.'); return;
+  }
+  if (payload.checkin_date >= payload.checkout_date) {
+    alert('Il check-out deve essere dopo il check-in.'); return;
+  }
+  const url    = id ? `/api/reservations/${id}` : '/api/reservations';
+  const method = id ? 'PUT' : 'POST';
+  const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+  const data = await res.json();
+  if (!res.ok) { alert(data.error || 'Errore salvataggio'); return; }
+  _resModal.hide();
+  loadCalendar();
+}
+
+async function deleteReservation() {
+  const id = document.getElementById('res_id').value;
+  if (!id || !confirm('Eliminare questa prenotazione?')) return;
+  await fetch(`/api/reservations/${id}`, {method: 'DELETE'});
+  _resModal.hide();
+  loadCalendar();
+}
+
+// ── new registration ──────────────────────────────────────────────────────────
+function newRegistration() {
+  if (guests.length > 0 &&
+      !confirm('Svuotare la lista ospiti e iniziare una nuova registrazione?')) return;
+  guests = [];
+  closeForm();
+  renderGuestTable();
+  document.getElementById('s_arrival_date').value = todayISO();
+  document.getElementById('s_num_days').value = 1;
+  document.getElementById('resultBox').innerHTML = '';
+}
 
 // ── boot ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  _aptModal = new bootstrap.Modal(document.getElementById('apartmentModal'));
+  _resModal = new bootstrap.Modal(document.getElementById('resModal'));
   await Promise.all([loadGuestTypes(), loadDocumentTypes(), loadApartments()]);
   document.getElementById('s_arrival_date').value = todayISO();
   document.getElementById('ricevutaDate').value = todayISO();
@@ -444,6 +979,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('ross_start').value =
     new Date(_now.getFullYear(), _now.getMonth(), 1).toISOString().slice(0, 10);
   document.getElementById('ross_end').value =
+    new Date(_now.getFullYear(), _now.getMonth() + 1, 0).toISOString().slice(0, 10);
+
+  // Set default history date range to current month
+  document.getElementById('h_date_from').value =
+    new Date(_now.getFullYear(), _now.getMonth(), 1).toISOString().slice(0, 10);
+  document.getElementById('h_date_to').value =
     new Date(_now.getFullYear(), _now.getMonth() + 1, 0).toISOString().slice(0, 10);
 });
 
@@ -484,11 +1025,6 @@ function renderAptList(apts) {
         <button class="btn btn-sm btn-outline-danger" onclick="deleteApartment('${a.id}', '${a.name}')">🗑️</button>
       </td>
     </tr>`).join('');
-}
-
-function openApartmentModal() {
-  resetAptForm();
-  loadApartments().then(() => _aptModal.show());
 }
 
 async function editApartment(id) {

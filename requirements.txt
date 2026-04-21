@@ -3,3 +3,4 @@ PassportEye
 SQLAlchemy
 flask
 pycountry
+holidays
