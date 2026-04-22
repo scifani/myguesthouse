@@ -1,8 +1,11 @@
 import logging
 import os
 
-from flask import Flask, jsonify, redirect, request, url_for
+from flask import Flask, jsonify, make_response, redirect, request, url_for
 from flask_login import LoginManager
+
+from web.translations import LANGUAGES, DEFAULT_LANG, TRANSLATIONS
+from web.config_loader import resolve_text
 
 logging.basicConfig(level=logging.INFO)
 
@@ -34,9 +37,32 @@ def create_app() -> Flask:
             return jsonify({'error': 'Non autenticato'}), 401
         return redirect(url_for('admin.login_page'))
 
+    @app.route('/set-lang/<code>')
+    def set_lang(code):
+        if code not in LANGUAGES:
+            code = DEFAULT_LANG
+        dest = request.referrer or url_for('public.index')
+        resp = make_response(redirect(dest))
+        resp.set_cookie('lang', code, max_age=60 * 60 * 24 * 365, samesite='Lax')
+        return resp
+
     @app.context_processor
-    def inject_site():
-        return {'site': site}
+    def inject_globals():
+        lang = request.cookies.get('lang', DEFAULT_LANG)
+        if lang not in LANGUAGES:
+            lang = DEFAULT_LANG
+        t = TRANSLATIONS[lang]
+
+        def resolve(value):
+            return resolve_text(value, lang)
+
+        return {
+            'site': site,
+            'lang': lang,
+            'languages': LANGUAGES,
+            't': t,
+            'resolve': resolve,
+        }
 
     from web.blueprints.public import public_bp
     from web.blueprints.admin import admin_bp

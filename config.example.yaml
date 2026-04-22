@@ -1,14 +1,29 @@
 # Copy this file to config.yaml and fill in your details.
 
+# Text fields (tagline, description, etc.) accept either a plain string (single
+# language) or a per-language dict. Supported language codes: it, en.
+# Example multilingual field:
+#   description:
+#     it: "Una bella proprietà..."
+#     en: "A beautiful property..."
+
 property:
   name: "My Guesthouse"
-  tagline: "Your home away from home"
-  description: >
-    A short description of your property shown on the public website.
+  tagline:
+    it: "La tua casa lontano da casa"
+    en: "Your home away from home"
+  description:
+    it: >
+      Una breve descrizione della proprietà mostrata sul sito pubblico.
+    en: >
+      A short description of your property shown on the public website.
   location:
     address: "City, Region, Country"
-    description: >
-      A few sentences about your location: nearby attractions, how to get there, etc.
+    description:
+      it: >
+        Qualche frase sulla posizione: attrazioni vicine, come raggiungerci, ecc.
+      en: >
+        A few sentences about your location: nearby attractions, how to get there, etc.
     google_maps_embed_url: ""   # Paste the src URL from Google Maps > Share > Embed a map
 
 contact:
@@ -19,13 +34,6 @@ contact:
 branding:
   primary_color: "#0d6efd"    # any CSS color value
 
-apartments:
-  - name: "Apartment 1"
-    size: "60 m²"
-    max_guests: 4
-    description: "Optional short description shown on the public site."
-    features:
-      - "2 bedrooms"
-      - "Fully equipped kitchen"
-      - "Free Wi-Fi"
-      - "Air conditioning"
+# Apartments are managed via the admin UI (/admin) and stored in the database.
+# Name, description, size, max guests, features, images, and AlloggiatiWeb
+# credentials are all configured there — not in this file.

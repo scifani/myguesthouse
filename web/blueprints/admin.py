@@ -7,13 +7,12 @@ from datetime import datetime
 from flask import (Blueprint, jsonify, redirect, render_template, request,
                    Response, url_for)
 from flask_login import LoginManager, UserMixin, current_user, login_required, login_user, logout_user
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
 
 from registration.models import (
-    Base, Apartment, GuestProfile, GuestStay, RegisteredGuest, Reservation,
+    Apartment, GuestProfile, GuestStay, RegisteredGuest, Reservation,
     Guest, GuestGender, GuestType,
 )
+from web.db import Session as _Session
 from registration.services.alloggiatiweb_api import AlloggiatiWebApi
 from registration.services.registration_service import RegistrationService
 from registration.services.table_service import TableService
@@ -59,37 +58,6 @@ def logout():
     logout_user()
     return redirect(url_for('public.index'))
 
-
-# ── database ───────────────────────────────────────────────────────────────────
-
-_DATA_DIR = os.environ.get('DATA_DIR', os.path.join(os.path.dirname(__file__), '..', '..', 'data'))
-os.makedirs(_DATA_DIR, exist_ok=True)
-_DB_PATH = os.environ.get('DB_PATH', os.path.join(_DATA_DIR, 'myguesthouse.db'))
-_engine = create_engine(f'sqlite:///{_DB_PATH}')
-Base.metadata.create_all(_engine)
-_Session = sessionmaker(bind=_engine)
-
-# Schema migration for databases created before the unified Base (adds columns that
-# were absent in older versions — safe to run on any existing DB).
-with _engine.connect() as _conn:
-    _existing_apt = {row[1] for row in _conn.execute(text('PRAGMA table_info(registration_apartments)'))}
-    for _col, _def in [
-        ('cin', 'VARCHAR(50)'), ('cir', 'VARCHAR(50)'),
-        ('comune', 'VARCHAR(100)'), ('indirizzo', 'VARCHAR(200)'),
-        ('ross_codice', 'VARCHAR(10)'), ('ross_camere', 'INTEGER'), ('ross_letti', 'INTEGER'),
-    ]:
-        if _col not in _existing_apt:
-            _conn.execute(text(f'ALTER TABLE registration_apartments ADD COLUMN {_col} {_def}'))
-    _existing_rg = {row[1] for row in _conn.execute(text('PRAGMA table_info(registered_guests)'))}
-    for _col, _def in [
-        ('stay_id', 'VARCHAR(36)'), ('profile_id', 'VARCHAR(36)'),
-    ]:
-        if _col not in _existing_rg:
-            _conn.execute(text(f'ALTER TABLE registered_guests ADD COLUMN {_col} {_def}'))
-    _existing_res = {row[1] for row in _conn.execute(text('PRAGMA table_info(reservations)'))}
-    if 'status' not in _existing_res:
-        _conn.execute(text("ALTER TABLE reservations ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'pending'"))
-    _conn.commit()
 
 # ── services ───────────────────────────────────────────────────────────────────
 
@@ -215,6 +183,11 @@ def create_apartment():
             ross_codice=data.get('ross_codice') or None,
             ross_camere=int(data['ross_camere']) if data.get('ross_camere') else None,
             ross_letti=int(data['ross_letti']) if data.get('ross_letti') else None,
+            description=data.get('description') or None,
+            size=data.get('size') or None,
+            max_guests=int(data['max_guests']) if data.get('max_guests') else None,
+            features=__import__('json').dumps(data['features']) if data.get('features') else None,
+            images=__import__('json').dumps(data['images']) if data.get('images') else None,
         )
         session.add(apt)
         try:
@@ -255,6 +228,16 @@ def update_apartment(apt_id):
             apt.ross_camere = int(data['ross_camere']) if data['ross_camere'] else None
         if 'ross_letti' in data:
             apt.ross_letti = int(data['ross_letti']) if data['ross_letti'] else None
+        if 'description' in data:
+            apt.description = data['description'] or None
+        if 'size' in data:
+            apt.size = data['size'] or None
+        if 'max_guests' in data:
+            apt.max_guests = int(data['max_guests']) if data['max_guests'] else None
+        if 'features' in data:
+            apt.features = __import__('json').dumps(data['features']) if data['features'] else None
+        if 'images' in data:
+            apt.images = __import__('json').dumps(data['images']) if data['images'] else None
         session.commit()
         return jsonify(apt.to_dict())
 

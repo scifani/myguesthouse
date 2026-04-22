@@ -20,7 +20,7 @@ os.environ.update({
 })
 
 from web.app import create_app                          # noqa: E402
-from web.blueprints.admin import _Session               # noqa: E402
+from web.db import Session as _Session                  # noqa: E402
 from registration.models import (                       # noqa: E402
     Apartment, GuestProfile, GuestStay, RegisteredGuest, Reservation,
 )

@@ -1,5 +1,6 @@
+import json
 import uuid
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, Text
 from registration.models.base import Base
 
 
@@ -19,6 +20,13 @@ class Apartment(Base):
     ross_camere = Column(Integer, nullable=True)
     ross_letti = Column(Integer, nullable=True)
 
+    # Public website content
+    description = Column(Text, nullable=True)
+    size = Column(String(20), nullable=True)
+    max_guests = Column(Integer, nullable=True)
+    features = Column(Text, nullable=True)   # JSON array of strings
+    images = Column(Text, nullable=True)     # JSON array of paths under web/static/images/
+
     def to_dict(self, include_credentials=False):
         d = {
             'id': self.id,
@@ -31,6 +39,11 @@ class Apartment(Base):
             'ross_codice': self.ross_codice,
             'ross_camere': self.ross_camere,
             'ross_letti': self.ross_letti,
+            'description': self.description,
+            'size': self.size,
+            'max_guests': self.max_guests,
+            'features': json.loads(self.features) if self.features else [],
+            'images': json.loads(self.images) if self.images else [],
         }
         if include_credentials:
             d['aw_password'] = self.aw_password

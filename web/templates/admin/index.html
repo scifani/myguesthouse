@@ -557,6 +557,39 @@
         </div>
 
         <hr class="my-3">
+        <h6 class="text-muted fw-normal">Sito pubblico</h6>
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            <label class="form-label">Dimensione</label>
+            <input type="text" class="form-control" id="apt_size" placeholder="Es. 60 m²">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Ospiti massimi</label>
+            <input type="number" class="form-control" id="apt_max_guests" min="1">
+          </div>
+          <div class="col-sm-12">
+            <label class="form-label">Descrizione</label>
+            <textarea class="form-control" id="apt_description" rows="2" placeholder="Breve descrizione per il sito pubblico"></textarea>
+          </div>
+          <div class="col-sm-12">
+            <label class="form-label">Caratteristiche</label>
+            <div class="input-group mb-2">
+              <input type="text" class="form-control" id="apt_feature_input" placeholder="Es. Wi-Fi gratuito" onkeydown="if(event.key==='Enter'){event.preventDefault();addAptFeature();}">
+              <button class="btn btn-outline-secondary" type="button" onclick="addAptFeature()">Aggiungi</button>
+            </div>
+            <div id="apt_features_list" class="d-flex flex-wrap gap-2"></div>
+          </div>
+          <div class="col-sm-12">
+            <label class="form-label">Immagini <small class="text-muted">(percorsi relativi a <code>web/static/images/</code>)</small></label>
+            <div class="input-group mb-2">
+              <input type="text" class="form-control" id="apt_image_input" placeholder="Es. apartments/apt1-1.jpg" onkeydown="if(event.key==='Enter'){event.preventDefault();addAptImage();}">
+              <button class="btn btn-outline-secondary" type="button" onclick="addAptImage()">Aggiungi</button>
+            </div>
+            <div id="apt_images_list" class="d-flex flex-wrap gap-2"></div>
+          </div>
+        </div>
+
+        <hr class="my-3">
         <h6 class="text-muted fw-normal">AlloggiatiWeb</h6>
         <div class="row g-3 mb-3">
           <div class="col-sm-6">
@@ -1073,6 +1106,41 @@ function renderAptList(apts) {
     </tr>`).join('');
 }
 
+let _aptFeatures = [];
+let _aptImages = [];
+
+function renderAptFeatures() {
+  document.getElementById('apt_features_list').innerHTML = _aptFeatures.map((f, i) =>
+    `<span class="badge bg-secondary d-flex align-items-center gap-1">${f}
+      <button type="button" class="btn-close btn-close-white btn-sm" style="font-size:.6rem" onclick="_aptFeatures.splice(${i},1);renderAptFeatures()"></button>
+    </span>`
+  ).join('');
+}
+
+function renderAptImages() {
+  document.getElementById('apt_images_list').innerHTML = _aptImages.map((img, i) =>
+    `<span class="badge bg-secondary d-flex align-items-center gap-1" style="max-width:260px;overflow:hidden;text-overflow:ellipsis" title="${img}">${img}
+      <button type="button" class="btn-close btn-close-white btn-sm" style="font-size:.6rem" onclick="_aptImages.splice(${i},1);renderAptImages()"></button>
+    </span>`
+  ).join('');
+}
+
+function addAptFeature() {
+  const inp = document.getElementById('apt_feature_input');
+  const val = inp.value.trim();
+  if (val && !_aptFeatures.includes(val)) { _aptFeatures.push(val); renderAptFeatures(); }
+  inp.value = '';
+  inp.focus();
+}
+
+function addAptImage() {
+  const inp = document.getElementById('apt_image_input');
+  const val = inp.value.trim();
+  if (val && !_aptImages.includes(val)) { _aptImages.push(val); renderAptImages(); }
+  inp.value = '';
+  inp.focus();
+}
+
 async function editApartment(id) {
   const apt = await fetch(`/api/apartments/${id}`).then(r => r.json());
   document.getElementById('apt_edit_id').value = apt.id;
@@ -1087,6 +1155,13 @@ async function editApartment(id) {
   document.getElementById('apt_ross_codice').value = apt.ross_codice || '';
   document.getElementById('apt_ross_camere').value = apt.ross_camere || '';
   document.getElementById('apt_ross_letti').value = apt.ross_letti || '';
+  document.getElementById('apt_size').value = apt.size || '';
+  document.getElementById('apt_max_guests').value = apt.max_guests || '';
+  document.getElementById('apt_description').value = apt.description || '';
+  _aptFeatures = apt.features ? [...apt.features] : [];
+  _aptImages = apt.images ? [...apt.images] : [];
+  renderAptFeatures();
+  renderAptImages();
   document.getElementById('aptFormTitle').textContent = 'Modifica appartamento';
   document.getElementById('aptTestResult').textContent = '';
 }
@@ -1105,6 +1180,11 @@ async function saveApartment() {
     ross_codice: document.getElementById('apt_ross_codice').value.trim() || null,
     ross_camere: document.getElementById('apt_ross_camere').value || null,
     ross_letti: document.getElementById('apt_ross_letti').value || null,
+    size: document.getElementById('apt_size').value.trim() || null,
+    max_guests: document.getElementById('apt_max_guests').value || null,
+    description: document.getElementById('apt_description').value.trim() || null,
+    features: _aptFeatures,
+    images: _aptImages,
   };
   if (!payload.name || !payload.aw_user || !payload.aw_password || !payload.aw_ws_key) {
     alert('Tutti i campi sono obbligatori.');
@@ -1145,6 +1225,15 @@ function resetAptForm() {
   document.getElementById('apt_ross_codice').value = '';
   document.getElementById('apt_ross_camere').value = '';
   document.getElementById('apt_ross_letti').value = '';
+  document.getElementById('apt_size').value = '';
+  document.getElementById('apt_max_guests').value = '';
+  document.getElementById('apt_description').value = '';
+  document.getElementById('apt_feature_input').value = '';
+  document.getElementById('apt_image_input').value = '';
+  _aptFeatures = [];
+  _aptImages = [];
+  renderAptFeatures();
+  renderAptImages();
   document.getElementById('aptFormTitle').textContent = 'Nuovo appartamento';
   document.getElementById('aptTestResult').textContent = '';
 }

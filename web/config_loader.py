@@ -9,3 +9,14 @@ def load_config() -> dict:
     )
     with open(config_path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f) or {}
+
+
+def resolve_text(value, lang: str, default_lang: str = 'it') -> str:
+    """Return the right language variant of a config value.
+
+    Accepts either a plain string (returned as-is) or a dict of the form
+    {it: '...', en: '...'} — falls back to default_lang, then first available.
+    """
+    if isinstance(value, dict):
+        return value.get(lang) or value.get(default_lang) or next(iter(value.values()), '')
+    return value or ''

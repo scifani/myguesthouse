@@ -60,11 +60,19 @@
           </button>
           <div class="collapse navbar-collapse" id="navContent">
             <ul class="navbar-nav ms-auto">
-              {% if site.apartments %}<li class="nav-item"><a class="nav-link" href="#appartamenti">Appartamenti</a></li>{% endif %}
-              {% if site.property.location %}<li class="nav-item"><a class="nav-link" href="#dove-siamo">Dove siamo</a></li>{% endif %}
+              {% if apartments %}<li class="nav-item"><a class="nav-link" href="#appartamenti">{{ t.nav_apartments }}</a></li>{% endif %}
+              {% if site.property.location %}<li class="nav-item"><a class="nav-link" href="#dove-siamo">{{ t.nav_location }}</a></li>{% endif %}
               {% if site.contact.phone or site.contact.email or site.contact.whatsapp %}
-              <li class="nav-item"><a class="nav-link" href="#contatti">Contatti</a></li>
+              <li class="nav-item"><a class="nav-link" href="#contatti">{{ t.nav_contact }}</a></li>
               {% endif %}
+              <li class="nav-item ms-lg-3 d-flex align-items-center">
+                {% for code in languages %}
+                <a href="/set-lang/{{ code }}"
+                   class="text-sm px-1 {% if code == lang %}font-weight-bolder text-dark{% else %}text-muted{% endif %}"
+                   style="text-decoration:none">{{ code.upper() }}</a>
+                {% if not loop.last %}<span class="text-muted px-1 opacity-5">|</span>{% endif %}
+                {% endfor %}
+              </li>
             </ul>
           </div>
         </div>
@@ -105,7 +113,7 @@
             {{ site.property.name | default('MyGuestHouse') }}
           </h1>
           {% if site.property.tagline %}
-          <p class="text-white lead mb-4 opacity-8" style="font-family:'HomemadeApple',cursive">{{ site.property.tagline }}</p>
+          <p class="text-white lead mb-4 opacity-8" style="font-family:'HomemadeApple',cursive">{{ resolve(site.property.tagline) }}</p>
           <svg viewBox="0 0 320 18" xmlns="http://www.w3.org/2000/svg"
                class="mx-auto mb-4 d-block opacity-6"
                style="width:min(320px,70%); height:18px">
@@ -120,10 +128,10 @@
           </p>
           {% endif %}
           {% if site.contact.phone or site.contact.email or site.contact.whatsapp %}
-          <a href="#contatti" class="btn bg-gradient-primary btn-lg mt-2 me-2">Contattaci</a>
+          <a href="#contatti" class="btn bg-gradient-primary btn-lg mt-2 me-2">{{ t.hero_contact_btn }}</a>
           {% endif %}
-          {% if site.apartments %}
-          <a href="#appartamenti" class="btn btn-outline-white btn-lg mt-2">Scopri gli appartamenti</a>
+          {% if apartments %}
+          <a href="#appartamenti" class="btn btn-outline-white btn-lg mt-2">{{ t.hero_apartments_btn }}</a>
           {% endif %}
         </div>
       </div>
@@ -146,7 +154,7 @@
     <div class="row justify-content-center">
       <div class="col-lg-8 text-center">
         <p class="lead text-dark opacity-8" style="line-height:1.85">
-          {{ site.property.description | safe }}
+          {{ resolve(site.property.description) | safe }}
         </p>
       </div>
     </div>
@@ -155,19 +163,56 @@
 {% endif %}
 
 <!-- ── Apartments ───────────────────────────────────────────────────────── -->
-{% if site.apartments %}
+{% if apartments %}
 <section class="py-6 bg-gray-100" id="appartamenti">
   <div class="container">
     <div class="row mb-5">
       <div class="col-12 text-center">
-        <h2 class="font-weight-bolder">Gli appartamenti</h2>
-        <p class="lead text-muted">Scegli il tuo spazio ideale</p>
+        <h2 class="font-weight-bolder">{{ t.apts_title }}</h2>
+        <p class="lead text-muted">{{ t.apts_subtitle }}</p>
       </div>
     </div>
     <div class="row g-4 justify-content-center">
-      {% for apt in site.apartments %}
+      {% for apt in apartments %}
+      {% set apt_id = loop.index0 %}
       <div class="col-md-6 col-lg-5">
         <div class="card shadow-lg border-0 h-100 overflow-hidden apt-card">
+
+          {% if apt.images %}
+          <!-- Mini carousel -->
+          <div id="aptCard{{ apt_id }}" class="carousel slide" data-bs-ride="carousel" style="height:220px">
+            <div class="carousel-inner h-100">
+              {% for img in apt.images %}
+              <div class="carousel-item h-100 {% if loop.first %}active{% endif %}">
+                <img src="/static/images/{{ img }}" class="d-block w-100 h-100 apt-gallery-trigger"
+                     style="object-fit:cover; cursor:zoom-in"
+                     data-bs-toggle="modal" data-bs-target="#aptModal{{ apt_id }}"
+                     data-apt-slide="{{ loop.index0 }}" alt="{{ apt.name }}">
+              </div>
+              {% endfor %}
+            </div>
+            {% if apt.images | length > 1 %}
+            <button class="carousel-control-prev" type="button"
+                    data-bs-target="#aptCard{{ apt_id }}" data-bs-slide="prev">
+              <span class="carousel-control-prev-icon"></span>
+            </button>
+            <button class="carousel-control-next" type="button"
+                    data-bs-target="#aptCard{{ apt_id }}" data-bs-slide="next">
+              <span class="carousel-control-next-icon"></span>
+            </button>
+            {% endif %}
+            <!-- Gallery badge -->
+            <span class="position-absolute bottom-0 end-0 m-2 badge bg-dark bg-opacity-50"
+                  style="cursor:zoom-in; pointer-events:none">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="white" class="me-1">
+                <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+              </svg>
+              {{ apt.images | length }}
+            </span>
+          </div>
+
+          {% else %}
+          <!-- Gradient fallback -->
           <div class="apt-card-header-img">
             <span class="text-white fs-1 opacity-4">🏠</span>
           </div>
@@ -179,13 +224,14 @@
                    border-radius: 0.75rem;">
             </div>
           </div>
+          {% endif %}
           <div class="card-body pt-3">
             <div class="d-flex justify-content-between align-items-start mb-2">
               <h5 class="font-weight-bolder mb-0">{{ apt.name }}</h5>
               {% if apt.size %}<span class="badge badge-sm bg-gradient-primary">{{ apt.size }}</span>{% endif %}
             </div>
             {% if apt.description %}
-            <p class="text-sm text-muted mb-3">{{ apt.description | safe }}</p>
+            <p class="text-sm text-muted mb-3">{{ resolve(apt.description) | safe }}</p>
             {% endif %}
             {% if apt.features %}
             <ul class="list-unstyled mb-3">
@@ -203,7 +249,7 @@
             {% endif %}
             {% if apt.max_guests %}
             <p class="text-xs text-muted mb-0">
-              <i class="ni ni-single-02 me-1"></i>Fino a <strong>{{ apt.max_guests }} ospiti</strong>
+              <i class="ni ni-single-02 me-1"></i>{{ t.apt_guests.replace('{n}', apt.max_guests | string) }}
             </p>
             {% endif %}
           </div>
@@ -223,12 +269,12 @@
       <div class="col-lg-5 mb-4 mb-lg-0">
         <div class="p-3">
           <span class="text-uppercase text-xs font-weight-bolder opacity-6 mb-2 d-block"
-                style="color: var(--brand)">Dove siamo</span>
+                style="color: var(--brand)">{{ t.location_label }}</span>
           {% if site.property.location.address %}
           <h3 class="font-weight-bolder mb-3">{{ site.property.location.address }}</h3>
           {% endif %}
           {% if site.property.location.description %}
-          <div class="text-muted">{{ site.property.location.description | safe }}</div>
+          <div class="text-muted">{{ resolve(site.property.location.description) | safe }}</div>
           {% endif %}
           {% if site.contact.phone %}
           <p class="mt-3 mb-1 text-sm">
@@ -282,8 +328,8 @@
       <div class="col-lg-8">
         <div class="card blur shadow-lg border-0">
           <div class="card-body p-5 text-center">
-            <h3 class="font-weight-bolder mb-2">Contattaci</h3>
-            <p class="text-muted mb-4">Siamo a tua disposizione per qualsiasi informazione o prenotazione.</p>
+            <h3 class="font-weight-bolder mb-2">{{ t.contact_title }}</h3>
+            <p class="text-muted mb-4">{{ t.contact_subtitle }}</p>
             <div class="row justify-content-center g-3">
               {% if site.contact.phone %}
               <div class="col-auto">
@@ -339,10 +385,93 @@
         <p class="text-secondary text-sm mb-0">© {{ site.property.name | default('MyGuestHouse') }}</p>
       </div>
       <div class="col-auto">
-        <a href="/login" class="text-secondary text-sm opacity-6">Area riservata</a>
+        <a href="/login" class="text-secondary text-sm opacity-6">{{ t.footer_admin }}</a>
       </div>
     </div>
   </div>
 </footer>
+
+<!-- ── Apartment gallery modals ──────────────────────────────────────────── -->
+{% for apt in apartments %}
+{% if apt.images %}
+{% set apt_id = loop.index0 %}
+<div class="modal fade" id="aptModal{{ apt_id }}" tabindex="-1" aria-label="{{ apt.name }}">
+  <div class="modal-dialog modal-fullscreen">
+    <div class="modal-content bg-dark">
+
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title text-white font-weight-bolder">{{ apt.name }}</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body d-flex align-items-center justify-content-center p-2">
+        <div id="aptModalCarousel{{ apt_id }}" class="carousel slide w-100" data-bs-ride="false">
+          <div class="carousel-inner">
+            {% for img in apt.images %}
+            <div class="carousel-item {% if loop.first %}active{% endif %}">
+              <img src="/static/images/{{ img }}"
+                   class="d-block mx-auto"
+                   style="max-height:80vh; max-width:100%; object-fit:contain"
+                   alt="{{ apt.name }} — foto {{ loop.index }}">
+            </div>
+            {% endfor %}
+          </div>
+          {% if apt.images | length > 1 %}
+          <button class="carousel-control-prev" type="button"
+                  data-bs-target="#aptModalCarousel{{ apt_id }}" data-bs-slide="prev">
+            <span class="carousel-control-prev-icon"></span>
+          </button>
+          <button class="carousel-control-next" type="button"
+                  data-bs-target="#aptModalCarousel{{ apt_id }}" data-bs-slide="next">
+            <span class="carousel-control-next-icon"></span>
+          </button>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if apt.images | length > 1 %}
+      <div class="modal-footer border-0 justify-content-center pt-0 pb-3 gap-2 flex-wrap">
+        {% for img in apt.images %}
+        <img src="/static/images/{{ img }}"
+             class="apt-thumb rounded"
+             style="height:48px; width:68px; object-fit:cover; cursor:pointer; opacity:{% if loop.first %}1{% else %}.5{% endif %}; transition:opacity .2s"
+             data-bs-target="#aptModalCarousel{{ apt_id }}"
+             data-bs-slide-to="{{ loop.index0 }}"
+             alt="">
+        {% endfor %}
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+
+<script>
+// Sync mini-carousel slide index → modal carousel on open
+document.querySelectorAll('.apt-gallery-trigger').forEach(function(img) {
+  img.addEventListener('click', function() {
+    var modalId = img.dataset.bsTarget;
+    var slideIdx = parseInt(img.dataset.aptSlide || '0');
+    var modal = document.querySelector(modalId);
+    if (!modal) return;
+    modal.addEventListener('show.bs.modal', function() {
+      var carouselEl = modal.querySelector('.carousel');
+      if (carouselEl) bootstrap.Carousel.getOrCreateInstance(carouselEl).to(slideIdx);
+    }, { once: true });
+  });
+});
+
+// Highlight active thumbnail when modal carousel slides
+document.querySelectorAll('[id^="aptModalCarousel"]').forEach(function(carouselEl) {
+  carouselEl.addEventListener('slid.bs.carousel', function(e) {
+    var modal = carouselEl.closest('.modal');
+    modal.querySelectorAll('.apt-thumb').forEach(function(th, i) {
+      th.style.opacity = (i === e.to) ? '1' : '0.5';
+    });
+  });
+});
+</script>
 
 {% endblock %}
