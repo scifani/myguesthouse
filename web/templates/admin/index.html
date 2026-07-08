@@ -1705,13 +1705,12 @@ function _rossOccupancy(rossGuests, startDate, endDate) {
   return occ;
 }
 
-function generateRossXml() {
+async function generateRossXml() {
   if (!selectedApartment) return;
   if (!selectedApartment.ross_codice) {
     alert('Configura il Codice Struttura ROSS1000 nell\'appartamento prima di esportare.');
     return;
   }
-  if (!guests.length) { alert('Nessun ospite nella lista.'); return; }
 
   const startStr = document.getElementById('ross_start').value;
   const endStr   = document.getElementById('ross_end').value;
@@ -1722,7 +1721,14 @@ function generateRossXml() {
   const endDate   = new Date(endStr   + 'T00:00:00');
   if (startDate > endDate) { alert('La data di inizio deve precedere la data di fine.'); return; }
 
-  const all = guests.map(_guestToRoss);
+  // Pull from Storico Ospiti (registered_guests), not the in-page check-in list:
+  // a stay starting before startStr but still ongoing must not be missed, so
+  // only date_to is sent to the API and the overlap is filtered client-side.
+  const params = new URLSearchParams({apartment_id: selectedApartment.id, date_to: endStr});
+  const history = await fetch('/api/guests/history?' + params).then(r => r.json());
+  if (!history.length) { alert('Nessun ospite in Storico Ospiti per questo appartamento.'); return; }
+
+  const all = history.map(_guestToRoss);
   const filtered = all.filter(g => g.arrDate <= endDate && g.depDate > startDate);
   if (!filtered.length) { alert('Nessun ospite nel periodo selezionato.'); return; }
 

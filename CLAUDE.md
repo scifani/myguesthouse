@@ -31,6 +31,15 @@ python3 -m unittest registration.tests.test_alloggiatiweb
 python3 -m unittest registration.tests.test_mrz_reader
 ```
 
+**Browser e2e tests** (admin UI, Playwright) live in `e2e/`. They spin up their own
+Flask instance against a throwaway SQLite DB (seeded by `e2e/seed_db.py`) — no
+external services or credentials needed.
+
+```bash
+npm install && npx playwright install --with-deps chromium   # one-time setup
+npx playwright test
+```
+
 `test_mrz_reader` fails if `tesseract-ocr` is not installed (`apt install tesseract-ocr`).
 
 ## Architecture
